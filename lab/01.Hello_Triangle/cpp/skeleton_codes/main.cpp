@@ -15,7 +15,6 @@
 GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;   // attribute 변수 a_position 위치
 GLint   loc_a_color;      // attribute 변수 a_color 위치
-GLint   loc_u_PVM;        // uniform 변수 u_PVM 위치
 
 GLuint  position_buffer;  // GPU 메모리에서 position_buffer의 위치
 GLuint  color_buffer;     // GPU 메모리에서 color_buffer의 위치
@@ -90,8 +89,6 @@ void init_shader_program()
 
   std::cout << "program id: " << program << std::endl;
   assert(program != 0);
-
-  loc_u_PVM = glGetUniformLocation(program, "u_PVM");
 
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_color = glGetAttribLocation(program, "a_color");
