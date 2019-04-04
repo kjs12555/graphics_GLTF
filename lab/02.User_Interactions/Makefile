@@ -1,4 +1,4 @@
-HEADERS = vec.hpp mat.hpp operator.hpp
+HEADERS =
 SOURCES = main.cpp
 CC = g++
 CFLAGS = -std=c++11
