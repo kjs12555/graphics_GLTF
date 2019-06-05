@@ -220,7 +220,7 @@ int main(void)
     // GPU의 VBO를 초기화하는 함수 호출
     init_buffer_objects();
 
-	glfwSetKeyCallback(window, key_callback);
+    glfwSetKeyCallback(window, key_callback);
 	
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))

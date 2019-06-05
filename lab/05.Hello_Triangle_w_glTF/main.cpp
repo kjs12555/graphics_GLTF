@@ -1,4 +1,8 @@
-﻿#include <GL/glew.h>
+﻿#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 #include <iostream>
@@ -119,7 +123,52 @@ void init_shader_program()
 
 void init_buffer_objects()
 {
-        
+    const std::vector<tinygltf::Mesh>& meshes = model.meshes;
+    const std::vector<tinygltf::Accessor>& accessors = model.accessors;
+    const std::vector<tinygltf::BufferView>& bufferViews = model.bufferViews;
+    const std::vector<tinygltf::Buffer>& buffers = model.buffers;
+    
+    for (size_t i=0; i< meshes.size(); ++i)
+    {
+		const tinygltf::Mesh& mesh = meshes[i];
+
+        if (mesh.name.compare("Triangle") == 0)
+        {
+			for (size_t j = 0; j < mesh.primitives.size(); ++j)
+			{
+				const tinygltf::Primitive& primitive = mesh.primitives[j];
+
+				for (std::map<std::string, int>::const_iterator it = primitive.attributes.cbegin();
+					it != primitive.attributes.cend();
+					++it)
+				{
+					const std::pair<std::string, int>& attrib = *it;
+
+					const int accessor_index = attrib.second;
+					const tinygltf::Accessor& accessor = accessors[accessor_index];
+
+					int bufferView_index = accessor.bufferView;
+					const tinygltf::BufferView& bufferView = bufferViews[bufferView_index];
+					const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
+
+					if (attrib.first.compare("POSITION") == 0)
+					{
+						glGenBuffers(1, &position_buffer);
+						glBindBuffer(bufferView.target, position_buffer);
+						glBufferData(bufferView.target, bufferView.byteLength,
+							&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+					}
+					else if (attrib.first.compare("COLOR_0") == 0)
+					{
+						glGenBuffers(1, &color_buffer);
+						glBindBuffer(bufferView.target, color_buffer);
+						glBufferData(bufferView.target, bufferView.byteLength,
+							&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+					}
+				}
+			}
+        }
+    }    
 }
 
 // object rendering: 현재 scene은 삼각형 하나로 구성되어 있음.
@@ -128,7 +177,65 @@ void render_object()
 	// 특정 쉐이더 프로그램 사용
 	glUseProgram(program);
 
-    
+    const std::vector<tinygltf::Mesh>& meshes = model.meshes;
+    const std::vector<tinygltf::Accessor>& accessors = model.accessors;
+    const std::vector<tinygltf::BufferView>& bufferViews = model.bufferViews;
+    const std::vector<tinygltf::Buffer>& buffers = model.buffers;
+
+	for (size_t i = 0; i < meshes.size(); ++i)
+	{
+		const tinygltf::Mesh& mesh = meshes[i];
+
+        if (mesh.name.compare("Triangle") == 0)
+        {
+			for (size_t j = 0; j < mesh.primitives.size(); ++j)
+			{
+				const tinygltf::Primitive& primitive = mesh.primitives[j];
+
+                int count = 0;
+
+				for (std::map<std::string, int>::const_iterator it = primitive.attributes.cbegin();
+					it != primitive.attributes.cend();
+					++it)
+				{
+					const std::pair<std::string, int>& attrib = *it;
+
+                    const int accessor_index = attrib.second;
+                    const tinygltf::Accessor& accessor = accessors[accessor_index];
+                    
+					count = accessor.count;
+
+                    int bufferView_index = accessor.bufferView;
+                    const tinygltf::BufferView& bufferView = bufferViews[bufferView_index];                    
+
+                    if (attrib.first.compare("POSITION") == 0)
+                    {
+                        glBindBuffer(bufferView.target, position_buffer);
+                        glEnableVertexAttribArray(loc_a_position);
+                        glVertexAttribPointer(loc_a_position,
+                            accessor.type, accessor.componentType,
+                            accessor.normalized ? GL_TRUE : GL_FALSE, 0,
+                            BUFFER_OFFSET(accessor.byteOffset));
+                    }
+                    else if (attrib.first.compare("COLOR_0") == 0)
+                    {
+                        glBindBuffer(bufferView.target, color_buffer);
+                        glEnableVertexAttribArray(loc_a_color);
+                        glVertexAttribPointer(loc_a_color,
+                            accessor.type, accessor.componentType,
+                            accessor.normalized ? GL_TRUE : GL_FALSE, 0,
+                            BUFFER_OFFSET(accessor.byteOffset));
+                    }
+                }
+
+                glDrawArrays(primitive.mode, 0, count);
+
+                // 정점 attribute 배열 비활성화
+                glDisableVertexAttribArray(loc_a_position);
+                glDisableVertexAttribArray(loc_a_color);
+            }            
+        }
+    }	
 
 	// 쉐이더 프로그램 사용해제
 	glUseProgram(0);
