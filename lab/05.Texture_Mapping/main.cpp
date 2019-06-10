@@ -1,4 +1,4 @@
-///// main.cpp
+﻿///// main.cpp
 ///// OpenGL 3+, GLSL 1.20, GLEW, GLFW3
 
 #include <GL/glew.h>
@@ -23,18 +23,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// 쉐이더 관련 변수 및 함수
 ////////////////////////////////////////////////////////////////////////////////
-GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
-GLint   loc_a_position;   // attribute 변수 a_position 위치
-GLint   loc_a_texcoord;   // attribute 변수 loc_a_texcoord 위치
-GLint   loc_u_PVM;        // uniform 변수 u_PVM 위치
-GLint   loc_u_texid_cats;  // uniform 변수 loc_u_texid_cats 위치
-GLint   loc_u_texid_frame; // uniform 변수 loc_u_texid_frame 위치
+GLuint  program;              // 쉐이더 프로그램 객체의 레퍼런스 값
+GLint   loc_a_position;       // attribute 변수 a_position 위치
+GLint   loc_a_texcoord;       // attribute 변수 loc_a_texcoord 위치
+GLint   loc_u_PVM;            // uniform 변수 u_PVM 위치
+GLint   loc_u_texture_cats;   // uniform 변수 loc_u_texid_cats 위치
+GLint   loc_u_texture_frame;  // uniform 변수 loc_u_texid_frame 위치
 
-GLuint  texid_cats;       // GPU 메모리에서 texid_cats 위치
-GLuint  texid_frame;      // GPU 메모리에서 texid_frame 위치
+GLuint  texid_cats;           // GPU 메모리에서 texid_cats 위치
+GLuint  texid_frame;          // GPU 메모리에서 texid_frame 위치
 
-GLuint  position_buffer;  // GPU 메모리에서 position_buffer의 위치
-GLuint  texcoord_buffer;  // GPU 메모리에서 texcoord_bufferd의 위치
+GLuint  position_buffer;      // GPU 메모리에서 position_buffer의 위치
+GLuint  texcoord_buffer;      // GPU 메모리에서 texcoord_bufferd의 위치
 
 void init();
 GLuint create_shader_from_file(const std::string& filename, GLuint shader_type);
@@ -170,8 +170,8 @@ void init_shader_program()
   assert(program != 0);
 
   loc_u_PVM = glGetUniformLocation(program, "u_PVM");
-  loc_u_texid_cats = glGetUniformLocation(program, "u_texid_cats");
-  loc_u_texid_frame = glGetUniformLocation(program, "u_texid_frame");
+  loc_u_texture_cats = glGetUniformLocation(program, "u_texture_cats");
+  loc_u_texture_frame = glGetUniformLocation(program, "u_texture_frame");
 
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
@@ -333,13 +333,19 @@ void render_object()
   mat_PVM = mat_proj * mat_view * mat_model;
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
 
+  glUniform1i(loc_u_texture_cats, 0);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texid_cats);
-  glUniform1i(loc_u_texid_cats, 0);
-
+  
+  glUniform1i(loc_u_texture_frame, 1);
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, texid_frame);
-  glUniform1i(loc_u_texid_frame, 1);
+  
+  std::cout << "loc_u_texture_cats:  " << loc_u_texture_cats << std::endl;
+  std::cout << "loc_u_texture_frame: " << loc_u_texture_frame << std::endl;
+
+  std::cout << "texid_cats:  " << texid_cats << std::endl;
+  std::cout << "texid_frame: " << texid_frame << std::endl;
 
   // 앞으로 언급하는 배열 버퍼(GL_ARRAY_BUFFER)는 position_buffer로 지정
   glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
