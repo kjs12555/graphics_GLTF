@@ -178,14 +178,6 @@ void init_shader_program()
 
 }
 
-void init_buffer_objects()
-{
-  glGenBuffers(1, &position_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_position), g_position, GL_STATIC_DRAW);
-
-  // TODO: texcoord_buffer 생성 및 데이터 세팅
-}
 
 void init_texture_objects()
 {
@@ -202,19 +194,32 @@ void init_texture_objects()
   // TODO: "00_cats.jpg"에 해당하는 텍스쳐 생성, 전송 및 텍스쳐-파라메터 세팅
 
 
-  
+
   // 메인메모리로 로딩된 영상데이터 메모리 해제
   stbi_image_free(image);
 
 
   // 파일로부터 영상을 이루는 픽셀들을 메인메모리로 로딩
-  image = stbi_load("01_frame.jpg", &width, &height, &channels, STBI_rgb);
+  image = stbi_load("01_frame.jpg", &width, &height, &channels, STBI_rgb);  
 
   // TODO: "01_frame.jpg"에 해당하는 텍스쳐 생성, 전송 및 텍스쳐-파라메터 세팅
 
 
+
   // 메인메모리로 로딩된 영상데이터 메모리 해제
   stbi_image_free(image);
+}
+
+
+
+void init_buffer_objects()
+{
+  glGenBuffers(1, &position_buffer);
+  glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(g_position), g_position, GL_STATIC_DRAW);
+
+  // TODO: texcoord_buffer 생성 및 데이터 세팅
+
 }
 
 void set_transform()
@@ -285,7 +290,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     std::cout << (g_is_animation ? "animation" : "no animation") << std::endl;
   }
 
-  /// TODO: Keyboard settings for Camera
   if (key == GLFW_KEY_A && action == GLFW_PRESS)
     camera.move_left(0.1f);
   if (key == GLFW_KEY_D && action == GLFW_PRESS)
@@ -323,7 +327,6 @@ void render_object()
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
 
   // TODO: 쉐이더 텍스쳐 샘플러 세팅, 텍스쳐 활성화 및 바인딩
-
 
 
 

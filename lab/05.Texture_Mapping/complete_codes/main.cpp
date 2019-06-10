@@ -170,23 +170,15 @@ void init_shader_program()
   assert(program != 0);
 
   loc_u_PVM = glGetUniformLocation(program, "u_PVM");
-  loc_u_texture_cats = glGetUniformLocation(program, "u_texture_cats");
-  loc_u_texture_frame = glGetUniformLocation(program, "u_texture_frame");
 
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
+
+  // TODO: loc_u_texture_cats, loc_u_texture_frame 세팅
+  loc_u_texture_cats = glGetUniformLocation(program, "u_texture_cats");
+  loc_u_texture_frame = glGetUniformLocation(program, "u_texture_frame");
 }
 
-void init_buffer_objects()
-{
-  glGenBuffers(1, &position_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_position), g_position, GL_STATIC_DRAW);
-
-  glGenBuffers(1, &texcoord_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_texcoord), g_texcoord, GL_STATIC_DRAW);
-}
 
 void init_texture_objects()
 {
@@ -197,35 +189,52 @@ void init_texture_objects()
   // 향후, 원점 위치를 좌*상*단에서 좌*하*단으로 이동시킨 효과가 나도록 영상을 로딩함.
   stbi_set_flip_vertically_on_load(true);
 
+  // 파일로부터 영상을 이루는 픽셀들을 메인메모리로 로딩
   image = stbi_load("00_cats.jpg", &width, &height, &channels, STBI_rgb);
 
-
+  // TODO: "00_cats.jpg"에 해당하는 텍스쳐 생성, 전송 및 텍스쳐-파라메터 세팅
   glGenTextures(1, &texid_cats);
-
   glBindTexture(GL_TEXTURE_2D, texid_cats);
-
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+  // 메인메모리로 로딩된 영상데이터 메모리 해제
   stbi_image_free(image);
 
-  image = stbi_load("01_frame.jpg", &width, &height, &channels, STBI_rgb);
 
+  // 파일로부터 영상을 이루는 픽셀들을 메인메모리로 로딩
+  image = stbi_load("01_frame.jpg", &width, &height, &channels, STBI_rgb);  
+
+  // TODO: "01_frame.jpg"에 해당하는 텍스쳐 생성, 전송 및 텍스쳐-파라메터 세팅
   glGenTextures(1, &texid_frame);
-
   glBindTexture(GL_TEXTURE_2D, texid_frame);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+  // 메인메모리로 로딩된 영상데이터 메모리 해제
   stbi_image_free(image);
+}
+
+
+
+void init_buffer_objects()
+{
+  glGenBuffers(1, &position_buffer);
+  glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(g_position), g_position, GL_STATIC_DRAW);
+
+  // TODO: texcoord_buffer 생성 및 데이터 세팅
+  glGenBuffers(1, &texcoord_buffer);
+  glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(g_texcoord), g_texcoord, GL_STATIC_DRAW);
 }
 
 void set_transform()
@@ -296,7 +305,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     std::cout << (g_is_animation ? "animation" : "no animation") << std::endl;
   }
 
-  /// TODO: Keyboard settings for Camera
   if (key == GLFW_KEY_A && action == GLFW_PRESS)
     camera.move_left(0.1f);
   if (key == GLFW_KEY_D && action == GLFW_PRESS)
@@ -333,19 +341,15 @@ void render_object()
   mat_PVM = mat_proj * mat_view * mat_model;
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
 
+  // TODO: 쉐이더 텍스쳐 샘플러 세팅, 텍스쳐 활성화 및 바인딩
   glUniform1i(loc_u_texture_cats, 0);
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texid_cats);
-  
+
   glUniform1i(loc_u_texture_frame, 1);
   glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, texid_frame);
-  
-  std::cout << "loc_u_texture_cats:  " << loc_u_texture_cats << std::endl;
-  std::cout << "loc_u_texture_frame: " << loc_u_texture_frame << std::endl;
 
-  std::cout << "texid_cats:  " << texid_cats << std::endl;
-  std::cout << "texid_frame: " << texid_frame << std::endl;
 
   // 앞으로 언급하는 배열 버퍼(GL_ARRAY_BUFFER)는 position_buffer로 지정
   glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
@@ -354,11 +358,10 @@ void render_object()
   // 현재 배열 버퍼에 있는 데이터를 버텍스 쉐이더 a_position에 해당하는 attribute와 연결
   glVertexAttribPointer(loc_a_position, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-  // 앞으로 언급하는 배열 버퍼(GL_ARRAY_BUFFER)는 texcoord_buffer로 지정
+
+  // TODO: texcoord_buffer에 있는 데이터를 a_texcoord에 해당하는 attribute와 연결
   glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer);
-  // 버텍스 쉐이더의 attribute 중 a_texcoord 부분 활성화
   glEnableVertexAttribArray(loc_a_texcoord);
-  // 현재 배열 버퍼에 있는 데이터를 버텍스 쉐이더 a_texcoord 해당하는 attribute와 연결
   glVertexAttribPointer(loc_a_texcoord, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
   // 삼각형 그리기
