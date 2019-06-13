@@ -1,4 +1,4 @@
-///// main.cpp
+﻿///// main.cpp
 ///// OpenGL 3+, GLSL 1.20, GLEW, GLFW3
 
 #include <GL/glew.h>
@@ -82,6 +82,15 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
   shader_string.assign(
     (std::istreambuf_iterator<char>(shader_file)),
     std::istreambuf_iterator<char>());
+
+  // Get rid of BOM in the head of shader_string
+  // Because, some GLSL compiler (e.g., Mesa Shader compiler) cannot handle UTF-8 with BOM
+  if (shader_string.compare(0, 3, "\xEF\xBB\xBF") == 0)  // Is the file marked as UTF-8?
+  {
+    std::cout << "Shader code (" << filename << ") is written in UTF-8 with BOM" << std::endl;
+    std::cout << "  When we pass the shader code to GLSL compiler, we temporarily get rid of BOM" << std::endl;
+    shader_string.erase(0, 3);                  // Now get rid of the BOM.
+  }
 
   const GLchar* shader_src = shader_string.c_str();
   glShaderSource(shader, 1, (const GLchar * *)& shader_src, NULL);
@@ -182,20 +191,10 @@ void set_transform()
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-  if (key == GLFW_KEY_H && action == GLFW_PRESS)
+  if (key == GLFW_KEY_H)
     g_translate_x -= 0.1f;
   if (key == GLFW_KEY_L)
     g_translate_x += 0.1f;
-  if (key == GLFW_KEY_J)
-    g_translate_y -= 0.1f;
-  if (key == GLFW_KEY_K)
-    g_translate_y += 0.1f;
-
-  if (key == GLFW_KEY_P && action == GLFW_PRESS)
-  {
-    g_is_animation = !g_is_animation;
-    std::cout << (g_is_animation ? "animation" : "no animation") << std::endl;
-  }
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -280,13 +279,6 @@ int main(void)
 
     set_transform();
     render_object();
-
-    if (g_is_animation)
-    {
-      g_translate_x += 0.1f;
-      if (g_translate_x > 1.0f)
-        g_translate_x = -1.0f;
-    }
 
     // Swap front and back buffers
     glfwSwapBuffers(window);

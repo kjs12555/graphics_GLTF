@@ -38,11 +38,11 @@ public:
   void move_right(float delta);
   void move_up(float delta);
   void move_down(float delta);
-  
+
   void pitch(float delta);
   void yaw(float delta);
   void roll(float delta);
-	
+
   const vec3  position() const          { return  position_; }
   const vec3  front_direction() const   { return  front_dir_; } 
   const vec3  up_direction() const      { return  up_dir_; }

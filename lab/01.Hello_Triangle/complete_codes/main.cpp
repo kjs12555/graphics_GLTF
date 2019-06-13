@@ -1,4 +1,4 @@
-///// main.cpp
+﻿///// main.cpp
 ///// OpenGL 3+, GLSL 1.20, GLEW, GLFW3
 
 #include <GL/glew.h>
@@ -15,6 +15,7 @@
 GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;   // attribute 변수 a_position 위치
 GLint   loc_a_color;      // attribute 변수 a_color 위치
+GLint   loc_u_PVM;        // uniform 변수 u_PVM 위치
 
 GLuint  position_buffer;  // GPU 메모리에서 position_buffer의 위치
 GLuint  color_buffer;     // GPU 메모리에서 color_buffer의 위치
@@ -59,6 +60,15 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
   shader_string.assign(
     (std::istreambuf_iterator<char>(shader_file)),
     std::istreambuf_iterator<char>());
+
+  // Get rid of BOM in the head of shader_string
+  // Because, some GLSL compiler (e.g., Mesa Shader compiler) cannot handle UTF-8 with BOM
+  if (shader_string.compare(0, 3, "\xEF\xBB\xBF") == 0)  // Is the file marked as UTF-8?
+  {
+    std::cout << "Shader code (" << filename << ") is written in UTF-8 with BOM" << std::endl;
+    std::cout << "  When we pass the shader code to GLSL compiler, we temporarily get rid of BOM" << std::endl;
+    shader_string.erase(0, 3);                  // Now get rid of the BOM.
+  }
 
   const GLchar* shader_src = shader_string.c_str();
   glShaderSource(shader, 1, (const GLchar * *)& shader_src, NULL);
@@ -125,6 +135,8 @@ void init_shader_program()
 
   std::cout << "program id: " << program << std::endl;
   assert(program != 0);
+
+  loc_u_PVM = glGetUniformLocation(program, "u_PVM");
 
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_color = glGetAttribLocation(program, "a_color");

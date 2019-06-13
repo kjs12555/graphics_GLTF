@@ -1,4 +1,4 @@
-///// main.cpp
+﻿///// main.cpp
 ///// OpenGL 3+, GLSL 1.20, GLEW, GLFW3
 
 #include <GL/glew.h>
@@ -70,6 +70,7 @@ float   g_aspect = 1.0f;
 
 
 // GLSL 파일을 읽어서 컴파일한 후 쉐이더 객체를 생성하는 함수
+// GLSL 파일을 읽어서 컴파일한 후 쉐이더 객체를 생성하는 함수
 GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
 {
   GLuint shader = 0;
@@ -82,6 +83,15 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
   shader_string.assign(
     (std::istreambuf_iterator<char>(shader_file)),
     std::istreambuf_iterator<char>());
+
+  // Get rid of BOM in the head of shader_string
+  // Because, some GLSL compiler (e.g., Mesa Shader compiler) cannot handle UTF-8 with BOM
+  if (shader_string.compare(0, 3, "\xEF\xBB\xBF") == 0)  // Is the file marked as UTF-8?
+  {
+    std::cout << "Shader code (" << filename << ") is written in UTF-8 with BOM" << std::endl;
+    std::cout << "  When we pass the shader code to GLSL compiler, we temporarily get rid of BOM" << std::endl;
+    shader_string.erase(0, 3);                  // Now get rid of the BOM.
+  }
 
   const GLchar* shader_src = shader_string.c_str();
   glShaderSource(shader, 1, (const GLchar * *)& shader_src, NULL);

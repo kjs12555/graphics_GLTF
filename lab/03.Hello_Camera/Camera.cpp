@@ -11,12 +11,12 @@ const Camera::vec3 Camera::center_position() const
 // TODO: fill up the following functions properly 
 void Camera::move_forward(float delta)
 {
-  // TODO: fill up this function properly 
+  position_ += delta * front_dir_;
 }
 
 void Camera::move_backward(float delta)
 {
-  // TODO: fill up this function properly 
+  move_forward(-delta);
 }
 
 void Camera::move_left(float delta)
@@ -31,12 +31,12 @@ void Camera::move_right(float delta)
 
 void Camera::move_up(float delta)
 {
-  // TODO: fill up this function properly 
+  position_ += delta * up_dir_;
 }
 
 void Camera::move_down(float delta)
 {
-  // TODO: fill up this function properly 
+  move_up(-delta);
 }
 
 void Camera::pitch(float delta)
@@ -44,12 +44,12 @@ void Camera::pitch(float delta)
   // TODO: fill up this function properly 
 }
 
-void Camera::yaw(float delta)
+void Camera::yaw(float delta) 
 {
   // TODO: fill up this function properly 
 }
 
-void Camera::roll(float delta)
+void Camera::roll(float delta) 
 {
   // TODO: fill up this function properly 
 }
