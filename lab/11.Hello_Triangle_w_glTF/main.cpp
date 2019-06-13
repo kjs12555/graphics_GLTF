@@ -76,22 +76,40 @@ bool load_model(tinygltf::Model &model, const std::string filename)
 // GLSL 파일을 읽어서 컴파일한 후 쉐이더 객체를 생성하는 함수
 GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
 {
-    GLuint shader = 0;
+  GLuint shader = 0;
 
-    shader = glCreateShader(shader_type);
+  shader = glCreateShader(shader_type);
 
-    std::ifstream shader_file(filename.c_str());
-    std::string shader_string;
+  std::ifstream shader_file(filename.c_str());
+  std::string shader_string;
 
-    shader_string.assign(
-        (std::istreambuf_iterator<char>(shader_file)),
-        std::istreambuf_iterator<char>());
+  shader_string.assign(
+    (std::istreambuf_iterator<char>(shader_file)),
+    std::istreambuf_iterator<char>());
 
-    const GLchar * shader_src = shader_string.c_str();
-    glShaderSource(shader, 1, (const GLchar **)&shader_src, NULL);
-    glCompileShader(shader);
+  const GLchar* shader_src = shader_string.c_str();
+  glShaderSource(shader, 1, (const GLchar * *)& shader_src, NULL);
+  glCompileShader(shader);
 
-    return shader;
+  GLint is_compiled;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compiled);
+  if (is_compiled != GL_TRUE)
+  {
+    std::cout << "Shader COMPILE error: " << std::endl;
+
+    GLint buf_len;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &buf_len);
+
+    std::string log_string(1 + buf_len, '\0');
+    glGetShaderInfoLog(shader, buf_len, 0, (GLchar *)log_string.c_str());
+
+    std::cout << "error_log: " << log_string << std::endl;
+
+    glDeleteShader(shader);
+    shader = 0;
+  }
+
+  return shader;
 }
 
 // vertex shader와 fragment shader를 링크시켜 program을 생성하는 함수
@@ -113,6 +131,24 @@ void init_shader_program()
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
+
+    GLint is_linked;
+    glGetProgramiv(program, GL_LINK_STATUS, &is_linked);
+    if (is_linked != GL_TRUE)
+    {
+      std::cout << "Shader LINK error: " << std::endl;
+
+      GLint buf_len;
+      glGetProgramiv(program, GL_INFO_LOG_LENGTH, &buf_len);
+
+      std::string log_string(1 + buf_len, '\0');
+      glGetProgramInfoLog(program, buf_len, 0, (GLchar *)log_string.c_str());
+
+      std::cout << "error_log: " << log_string << std::endl;
+
+      glDeleteProgram(program);
+      program = 0;
+    }
 
     std::cout << "program id: " << program << std::endl;
     assert(program != 0);

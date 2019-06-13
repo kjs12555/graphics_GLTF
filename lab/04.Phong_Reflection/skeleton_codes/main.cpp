@@ -1,4 +1,4 @@
-///// main.cpp
+﻿///// main.cpp
 ///// OpenGL 3+, GLSL 1.20, GLEW, GLFW3
 
 #include <GL/glew.h>
@@ -8,9 +8,17 @@
 #include <string>
 #include <fstream>
 #include <cassert>
+#include <chrono>
 #include "../common/vec.hpp"
 #include "../common/transform.hpp"
 #include "Camera.h"
+
+#define USE_BUNNY
+#ifdef USE_BUNNY
+#include "Bunny.hpp"
+#else
+#include "Teapot.hpp"
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /// 쉐이더 관련 변수 및 함수
@@ -34,30 +42,17 @@ void init_buffer_objects();
 kmuvcl::math::mat4x4f     mat_model, mat_view, mat_proj;
 kmuvcl::math::mat4x4f     mat_PVM;
 
-float   g_translate_x = 0.0, g_translate_y = 0.0, g_translate_z = 0.0;
+float   g_angle = 0.0;
 bool    g_is_animation = false;
+std::chrono::time_point<std::chrono::system_clock> prev, curr;
 
 void set_transform();
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
-/// 렌더링 관련 변수 및 함수
+/// 렌더링 관련 함수
 ////////////////////////////////////////////////////////////////////////////////
-// per-vertex 3D positions (x, y, z)
-GLfloat g_position[] = {
-   0.5f,  0.5f,  0.0f,          // 0th vertex position
-  -0.5f, -0.5f,  0.0f,          // 1st vertex position
-   0.5f, -0.5f,  0.0f,          // 2nd vertex position
-};
-
-// per-vertex RGB color (r, g, b)
-GLfloat g_color[] = {
-  1.0f, 0.0f, 0.0f,             // 0th vertex color (red)
-  1.0f, 0.0f, 0.0f,             // 1st vertex color (red)
-  1.0f, 0.0f, 0.0f,             // 2nd vertex color (red)
-};
-
-void render_object();           // rendering 함수: 물체(삼각형)를 렌더링하는 함수.
+void render_object();           // rendering 함수: 물체를 렌더링하는 함수.
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -68,6 +63,14 @@ Camera  camera;
 float   g_aspect = 1.0f;
 ////////////////////////////////////////////////////////////////////////////////
 
+
+void init()
+{
+  glEnable(GL_DEPTH_TEST);
+
+  camera.set_near(0.1f);
+  camera.set_far(100.0f);
+}
 
 // GLSL 파일을 읽어서 컴파일한 후 쉐이더 객체를 생성하는 함수
 GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
@@ -159,27 +162,31 @@ void init_buffer_objects()
 {
   glGenBuffers(1, &position_buffer);
   glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_position), g_position, GL_STATIC_DRAW);
+#ifdef USE_BUNNY
+  glBufferData(GL_ARRAY_BUFFER, sizeof(bunny::position), bunny::position, GL_STATIC_DRAW);
+#else
+  glBufferData(GL_ARRAY_BUFFER, sizeof(teapot::position), teapot::position, GL_STATIC_DRAW);
+#endif
 
   glGenBuffers(1, &color_buffer);
   glBindBuffer(GL_ARRAY_BUFFER, color_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_color), g_color, GL_STATIC_DRAW);
+#ifdef USE_BUNNY
+  glBufferData(GL_ARRAY_BUFFER, sizeof(bunny::normal), bunny::normal, GL_STATIC_DRAW);
+#else
+  glBufferData(GL_ARRAY_BUFFER, sizeof(teapot::normal), teapot::normal, GL_STATIC_DRAW);
+#endif
 }
 
 void set_transform()
 {
   // set camera transformation
-  kmuvcl::math::vec3f eye     = camera.position();
-  kmuvcl::math::vec3f up      = camera.up_direction();
-  kmuvcl::math::vec3f center  = eye + camera.front_direction();
-
-  std::cout << "eye:    " << eye << std::endl;
-  std::cout << "up:     " << up << std::endl;
-  std::cout << "center: " << center << std::endl;
+  kmuvcl::math::vec3f eye = camera.position();
+  kmuvcl::math::vec3f up = camera.up_direction();
+  kmuvcl::math::vec3f center = eye + camera.front_direction();
 
   mat_view = kmuvcl::math::lookAt(eye[0], eye[1], eye[2],
-                                  center[0], center[1], center[2],
-                                  up[0], up[1], up[2]);
+    center[0], center[1], center[2],
+    up[0], up[1], up[2]);
 
   float n = camera.near();
   float f = camera.far();
@@ -191,42 +198,27 @@ void set_transform()
     float b = camera.bottom();
     float t = camera.top();
 
-    std::cout << "(camera.mode() == Camera::kOrtho)" << std::endl;
-    std::cout << "(l, r, b, t, n, f): " << l << ", " << r << ", " << b << ", " << t << ", " << n << ", " << f << std::endl;
-
     mat_proj = kmuvcl::math::ortho(l, r, b, t, n, f);
   }
   else if (camera.mode() == Camera::kPerspective)
   {
-    std::cout << "(camera.mode() == Camera::kPerspective)" << std::endl;
-    std::cout << "(fov, aspect, n, f): " << camera.fovy() << ", " << g_aspect << ", " << n << ", " << f << std::endl;
-
     mat_proj = kmuvcl::math::perspective(camera.fovy(), g_aspect, n, f);
   }
 
   // set object transformation
-  mat_model = kmuvcl::math::translate(g_translate_x, g_translate_y, g_translate_z);
+  mat_model = kmuvcl::math::rotate(g_angle*1.0f, 0.0f, 1.0f, 0.0f);
+  mat_model = kmuvcl::math::translate(0.0f, 0.0f, -1.0f) * mat_model;
 }
 
 
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void key_callback(GLFWwindow * window, int key, int scancode, int action, int mods)
 {
-  if (key == GLFW_KEY_H && action == GLFW_PRESS)
-    g_translate_x -= 0.1f;
-  if (key == GLFW_KEY_L && action == GLFW_PRESS)
-    g_translate_x += 0.1f;
-  if (key == GLFW_KEY_J && action == GLFW_PRESS)
-    g_translate_y -= 0.1f;
-  if (key == GLFW_KEY_K && action == GLFW_PRESS)
-    g_translate_y += 0.1f;
-
   if (key == GLFW_KEY_P && action == GLFW_PRESS)
   {
     g_is_animation = !g_is_animation;
     std::cout << (g_is_animation ? "animation" : "no animation") << std::endl;
   }
-  
-  /// TODO: Keyboard settings for Camera
+
   if (key == GLFW_KEY_A && action == GLFW_PRESS)
     camera.move_left(0.1f);
   if (key == GLFW_KEY_D && action == GLFW_PRESS)
@@ -235,14 +227,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     camera.move_forward(0.1f);
   if (key == GLFW_KEY_S && action == GLFW_PRESS)
     camera.move_backward(0.1f);
-  
+
   if (key == GLFW_KEY_Q && action == GLFW_PRESS)
   {
     camera.set_mode(camera.mode() == Camera::kOrtho ? Camera::kPerspective : Camera::kOrtho);
-  }    
+  }
 }
 
-void frambuffer_size_callback(GLFWwindow* window, int width, int height)
+void frambuffer_size_callback(GLFWwindow * window, int width, int height)
 {
   glViewport(0, 0, width, height);
 
@@ -277,8 +269,13 @@ void render_object()
   // 현재 배열 버퍼에 있는 데이터를 버텍스 쉐이더 a_color에 해당하는 attribute와 연결
   glVertexAttribPointer(loc_a_color, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-  // 삼각형 그리기
-  glDrawArrays(GL_TRIANGLES, 0, 3);
+#ifdef USE_BUNNY
+  // 스탠포드 토끼 그리기
+  glDrawArrays(GL_TRIANGLES, 0, bunny::num_position);
+#else
+  // 유타 찻주전자 그리기
+  glDrawArrays(GL_TRIANGLES, 0, teapot::num_position);
+#endif
 
   // 정점 attribute 배열 비활성화
   glDisableVertexAttribArray(loc_a_position);
@@ -314,12 +311,14 @@ int main(void)
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
 
+  init();
   init_shader_program();
   init_buffer_objects();
 
   glfwSetKeyCallback(window, key_callback);
-  /// TODO: Set a callback for resizing the framebuffer 
   glfwSetFramebufferSizeCallback(window, frambuffer_size_callback);
+
+  prev = curr = std::chrono::system_clock::now();
 
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
@@ -330,11 +329,15 @@ int main(void)
     set_transform();
     render_object();
 
+    curr = std::chrono::system_clock::now();
+    std::chrono::duration<float> elaped_seconds = (curr - prev);
+    prev = curr;
+
     if (g_is_animation)
     {
-      g_translate_x += 0.1f;
-      if (g_translate_x > 1.0f)
-        g_translate_x = -1.0f;
+      g_angle += 30.0f * elaped_seconds.count();
+      if (g_angle > 360.0f)
+        g_angle = 0.0f;
     }
 
     // Swap front and back buffers
