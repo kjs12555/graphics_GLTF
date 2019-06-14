@@ -1,12 +1,11 @@
 #version 120                  // GLSL 1.20
 
-attribute vec3 a_position;    // per-vertex position (per-vertex input)
-attribute vec3 a_color;       // per-vertex color (per-vertex input)
+uniform mat4 u_PVM;
 
-varying   vec3 v_color;       // per-vertex color (per-vertex output)
+attribute vec3 a_position;    // per-vertex position (per-vertex input)
+
 
 void main()
 {
-  gl_Position = vec4(a_position, 1.0f);
-  v_color = a_color;
+  gl_Position = u_PVM * vec4(a_position, 1.0f);
 }

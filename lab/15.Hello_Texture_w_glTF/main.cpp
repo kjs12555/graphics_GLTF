@@ -52,6 +52,21 @@ namespace kmuvcl {
       mat_rot(3, 3) = 1.0f;
       return mat_rot;
     }
+    const float MATH_PI = 3.14159265358979323846f;
+
+    template <typename T>
+    inline T rad2deg(T deg)
+    {
+      T rad = deg * (180.0f / MATH_PI);
+      return rad;
+    }
+
+    template <typename T>
+    inline T deg2rad(T rad)
+    {
+      T deg = rad * (MATH_PI / 180.0f);
+      return deg;
+    }
   } // math
 } // kmuvcl
 
@@ -66,7 +81,9 @@ void init_state();
 ////////////////////////////////////////////////////////////////////////////////
 GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;
+GLint   loc_a_color;
 GLint   loc_a_texcoord;
+GLint	loc_a_normal;
 
 GLint   loc_u_PVM;
 GLint   loc_u_texture;
@@ -90,6 +107,7 @@ void set_transform();
 tinygltf::Model model;
 
 GLuint position_buffer;
+GLuint  color_buffer;
 GLuint normal_buffer;
 GLuint texcoord_buffer;
 GLuint index_buffer;
@@ -103,6 +121,14 @@ void init_texture_objects();
 void draw_scene();
 void draw_node(const tinygltf::Node& node, kmuvcl::math::mat4f mat_view);
 void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model);
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+/// 플래그, 인덱스 변수
+////////////////////////////////////////////////////////////////////////////////
+int camera_index = 0;
+float m_translate_x=0, m_translate_y=0, m_translate_z=0;
+float c_translate_x=0, c_translate_y=0, c_translate_z=0;
 ////////////////////////////////////////////////////////////////////////////////
 
 void init_state()
@@ -205,6 +231,7 @@ void init_shader_program()
 
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
+  loc_a_color = glGetAttribLocation(program, "a_color");
 }
 
 bool load_model(tinygltf::Model &model, const std::string filename)
@@ -249,14 +276,16 @@ void init_buffer_objects()
   {
     for (const tinygltf::Primitive& primitive : mesh.primitives)
     {
-      const tinygltf::Accessor& accessor = accessors[primitive.indices];
-      const tinygltf::BufferView& bufferView = bufferViews[accessor.bufferView];
-      const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
-
-      glGenBuffers(1, &index_buffer);
-      glBindBuffer(bufferView.target, index_buffer);
-      glBufferData(bufferView.target, bufferView.byteLength,
-        &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+      if(primitive.indices!=-1)
+      {
+        const tinygltf::Accessor& accessor = accessors[primitive.indices];
+        const tinygltf::BufferView& bufferView = bufferViews[accessor.bufferView];
+        const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
+        glGenBuffers(1, &index_buffer);
+        glBindBuffer(bufferView.target, index_buffer);
+        glBufferData(bufferView.target, bufferView.byteLength,
+          &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+      }
 
       for (const auto& attrib : primitive.attributes)
       {
@@ -271,17 +300,24 @@ void init_buffer_objects()
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
         }
-        /*else if (attrib.first.compare("NORMAL") == 0)
+        else if (attrib.first.compare("NORMAL") == 0)
         {
           glGenBuffers(1, &normal_buffer);
           glBindBuffer(bufferView.target, normal_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
-        }*/
+        }
         else if (attrib.first.compare("TEXCOORD_0") == 0)
         {
           glGenBuffers(1, &texcoord_buffer);
           glBindBuffer(bufferView.target, texcoord_buffer);
+          glBufferData(bufferView.target, bufferView.byteLength,
+            &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+        }
+        else if (attrib.first.compare("COLOR_0") == 0)
+        {
+          glGenBuffers(1, &color_buffer);
+          glBindBuffer(bufferView.target, color_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
         }
@@ -293,6 +329,7 @@ void init_buffer_objects()
 void init_texture_objects()
 {
   const std::vector<tinygltf::Texture>& textures = model.textures;
+  if(textures.empty()) return;
   const std::vector<tinygltf::Image>& images = model.images;
   const std::vector<tinygltf::Sampler>& samplers = model.samplers;
 
@@ -330,22 +367,78 @@ void init_texture_objects()
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, sampler.wrapS);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, sampler.wrapT);
 
-    //glGenerateMipmap(GL_TEXTURE_2D);
+    glGenerateMipmap(GL_TEXTURE_2D);
   }
 }
 
 void set_transform()
 {
-  //mat_view.set_to_identity();
-  mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
-
+  mat_view.set_to_identity();
   //mat_proj.set_to_identity();
+
   float fovy = 70.0f;
   float aspectRatio = 1.0f;
   float znear = 0.01f;
   float zfar = 100.0f;
+  bool proj_flag = false;
+  bool view_flag = false;
 
-  mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+  const std::vector<tinygltf::Node>& nodes = model.nodes;
+  const std::vector<tinygltf::Camera>& cameras = model.cameras;
+  if(!cameras.empty()){
+    const tinygltf::Camera& camera = cameras[camera_index];
+    if (camera.type.compare("perspective") == 0)
+    {
+      proj_flag = true;
+      fovy = kmuvcl::math::rad2deg(camera.perspective.yfov);
+      aspectRatio = camera.perspective.aspectRatio;
+      znear = camera.perspective.znear;
+      zfar = camera.perspective.zfar;
+
+      /*std::cout << "(camera.mode() == Camera::kPerspective)" << std::endl;
+      std::cout << "(fovy, aspect, n, f): " << fovy << ", " << aspectRatio << ", " << znear << ", " << zfar << std::endl;*/
+      mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+    }
+    else if(camera.type.compare("orthographic") == 0)
+    {
+      proj_flag = true;
+      float xmag = camera.orthographic.xmag;
+      float ymag = camera.orthographic.ymag;
+      float znear = camera.orthographic.znear;
+      float zfar = camera.orthographic.zfar;
+
+      /*std::cout << "(camera.mode() == Camera::kOrtho)" << std::endl;
+      std::cout << "(xmag, ymag, n, f): " << xmag << ", " << ymag << ", " << znear << ", " << zfar << std::endl;*/
+      mat_proj = kmuvcl::math::ortho(-xmag, xmag, -ymag, ymag, znear, zfar);
+    }
+
+    for (const tinygltf::Node& node : nodes)
+    {
+      if (node.camera == camera_index)
+      {
+        mat_view.set_to_identity();
+        if (node.scale.size() == 3) {
+          view_flag = true;
+          mat_view = mat_view*kmuvcl::math::scale<float>(
+                1.0f / node.scale[0], 1.0f / node.scale[1], 1.0f / node.scale[2]);
+        }
+
+        if (node.rotation.size() == 4) {
+          view_flag = true;
+          mat_view = mat_view*kmuvcl::math::quat2mat(
+                node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]).transpose();
+        }
+
+        if (node.translation.size() == 3) {
+          view_flag = true;
+          mat_view = mat_view*kmuvcl::math::translate<float>(
+                -node.translation[0], -node.translation[1], -node.translation[2]);
+        }      
+      }
+    }
+  }
+  if(!proj_flag) mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+  if(!view_flag) mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
 }
 
 void draw_node(const tinygltf::Node& node, kmuvcl::math::mat4f mat_model)
@@ -414,10 +507,8 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   const std::vector<tinygltf::Buffer>& buffers = model.buffers;
 
   glUseProgram(program);
-
   mat_PVM = mat_proj * mat_view*mat_model;
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
-  
   for (const tinygltf::Primitive& primitive : mesh.primitives)
   {
     if (primitive.material > -1)
@@ -437,6 +528,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
         }
       }
     }
+    int count=-1;
 
     for (const std::pair<std::string, int>& attrib : primitive.attributes)
     {
@@ -447,6 +539,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
       const tinygltf::BufferView& bufferView = bufferViews[bufferView_index];
       const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
       const int byteStride = accessor.ByteStride(bufferView);
+      count = accessor.count;
 
       if (attrib.first.compare("POSITION") == 0)
       {
@@ -457,7 +550,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
       }
-      /*else if (attrib.first.compare("NORMAL") == 0)
+      else if (attrib.first.compare("NORMAL") == 0)
       {
         glBindBuffer(bufferView.target, normal_buffer);
         glEnableVertexAttribArray(loc_a_normal);
@@ -465,7 +558,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.type, accessor.componentType,
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
-      }*/
+      }
       else if (attrib.first.compare("TEXCOORD_0") == 0)
       {
         glBindBuffer(bufferView.target, texcoord_buffer);
@@ -475,25 +568,40 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
       }
+      else if (attrib.first.compare("COLOR_0") == 0)
+      {
+        glBindBuffer(bufferView.target, color_buffer);
+        glEnableVertexAttribArray(loc_a_color);
+        glVertexAttribPointer(loc_a_color,
+          accessor.type, accessor.componentType,
+          accessor.normalized ? GL_TRUE : GL_FALSE, 0,
+          BUFFER_OFFSET(accessor.byteOffset));
+      }
     }
+    if(primitive.indices!=-1)
+    {
+      const tinygltf::Accessor& index_accessor = accessors[primitive.indices];
 
-    const tinygltf::Accessor& index_accessor = accessors[primitive.indices];
+      int bufferView_index = index_accessor.bufferView;
+      const tinygltf::BufferView& bufferView = bufferViews[bufferView_index];
+      const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
 
-    int bufferView_index = index_accessor.bufferView;
-    const tinygltf::BufferView& bufferView = bufferViews[bufferView_index];
-    const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
+      glBindBuffer(bufferView.target, index_buffer);
 
-    glBindBuffer(bufferView.target, index_buffer);
-
-    glDrawElements(primitive.mode,
-      index_accessor.count,
-      index_accessor.componentType,
-      BUFFER_OFFSET(index_accessor.byteOffset));    
-
+      glDrawElements(primitive.mode,
+        index_accessor.count,
+        index_accessor.componentType,
+        BUFFER_OFFSET(index_accessor.byteOffset));    
+    }
+    else
+    {
+      glDrawArrays(primitive.mode, 0, count);
+    }
     // 정점 attribute 배열 비활성화
     glDisableVertexAttribArray(loc_a_texcoord);
-    //glDisableVertexAttribArray(loc_a_normal);
+    glDisableVertexAttribArray(loc_a_normal);
     glDisableVertexAttribArray(loc_a_position);
+    glDisableVertexAttribArray(loc_a_color);
   }
   glUseProgram(0);
 }
@@ -504,6 +612,7 @@ void draw_scene()
 
   kmuvcl::math::mat4f mat_model;
   mat_model.set_to_identity();
+  mat_model = kmuvcl::math::translate<float>(c_translate_x, c_translate_y, c_translate_z);
 
   for (const tinygltf::Scene& scene : model.scenes)
   {
@@ -513,6 +622,66 @@ void draw_scene()
       draw_node(node, mat_model);
     }
   }
+}
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+	{
+		camera_index = camera_index == 0 ? 1 : 0;
+		if(!camera_index)
+			printf("Perspective Camera!");
+		else
+			printf("Orthographic Camera!");
+	}
+	if (key == GLFW_KEY_H){
+		m_translate_x -= 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+	if (key == GLFW_KEY_L){
+		m_translate_x += 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+	if (key == GLFW_KEY_J){
+		m_translate_y += 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+	if (key == GLFW_KEY_K){
+		m_translate_y -= 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+	if (key == GLFW_KEY_I){
+		m_translate_z += 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+	if (key == GLFW_KEY_O){
+		m_translate_z -= 0.1f;
+		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
+	}
+
+	if (key == GLFW_KEY_A){
+		c_translate_x -= 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
+	if (key == GLFW_KEY_F){
+		c_translate_x += 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
+	if (key == GLFW_KEY_S){
+		c_translate_y += 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
+	if (key == GLFW_KEY_D){
+		c_translate_y -= 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
+	if (key == GLFW_KEY_W){
+		c_translate_z += 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
+	if (key == GLFW_KEY_E){
+		c_translate_z -= 0.1f;
+		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
+	}
 }
 
 int main(void)
@@ -540,16 +709,15 @@ int main(void)
 
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
-
   init_state();
   init_shader_program();
-
   load_model(model, "BoxTextured/BoxTextured.gltf");
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
   init_texture_objects();
-
+  glfwSetKeyCallback(window, key_callback);
+  std::cout<<position_buffer<<std::endl;
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
   {

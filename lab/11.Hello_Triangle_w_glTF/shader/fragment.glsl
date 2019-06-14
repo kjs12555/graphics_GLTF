@@ -1,8 +1,6 @@
 #version 120                  // GLSL 1.20
 
-varying vec3 v_color;         // per-fragment color (per-fragment input)
-
 void main()
 {
-	gl_FragColor = vec4(v_color, 1.0f);
+	gl_FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }
