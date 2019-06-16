@@ -83,11 +83,30 @@ GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;
 GLint   loc_a_color;
 GLint   loc_a_texcoord;
-GLint	loc_a_normal;
+//GLint	loc_a_normal;
 
 GLint   loc_u_PVM;
 GLint   loc_u_texture;
 
+//shader_flag 0은 color, 1은 texture 정보가 있으면 true이다. 거기에 따라서 shader구성이 변한다.
+bool shader_flag[2]={false,false};
+std::string vertex_init="#version 120// GLSL 1.20\nuniform mat4 u_PVM;\nattribute vec3 a_position;\n";
+std::string vertex_code="void main(){\n\tgl_Position=u_PVM*vec4(a_position,1.0f);\n";
+std::string frag_init="#version 120// GLSL 1.20\n";
+std::string frag_code="void main(){\n";
+std::string frag_code_default="void main(){\n\tgl_FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);\n";
+std::string color_VI = "attribute vec3 a_color;\nvarying vec3 v_color;\n";
+std::string color_VC = "\tv_color = a_color;\n";
+std::string color_FI = "varying vec3 v_color;\n";
+std::string color_FC = "\tgl_FragColor = vec4(v_color,1.0f);\n";
+std::string texture_VI = "attribute vec2 a_texcoord;\nvarying vec2 v_texcoord;\n";
+std::string texture_VC = "\tv_texcoord = a_texcoord;\n";
+std::string texture_FI = "uniform sampler2D u_texture;\nvarying vec2 v_texcoord;\n";
+std::string texture_FC = "\tgl_FragColor = texture2D(u_texture, v_texcoord);\n";
+
+
+void init_shader_code(const std::string& code, const std::string& filename);
+void init_code();
 GLuint create_shader_from_file(const std::string& filename, GLuint shader_type);
 void init_shader_program();
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +127,7 @@ tinygltf::Model model;
 
 GLuint position_buffer;
 GLuint  color_buffer;
-GLuint normal_buffer;
+//GLuint normal_buffer;
 GLuint texcoord_buffer;
 GLuint index_buffer;
 
@@ -134,6 +153,37 @@ float c_translate_x=0, c_translate_y=0, c_translate_z=0;
 void init_state()
 {
   glEnable(GL_DEPTH_TEST);
+}
+void init_code(){
+  if(shader_flag[0])
+  {
+    vertex_init+=color_VI;
+    vertex_code+=color_VC;
+    frag_init+=color_FI;
+    frag_code+=color_VC;
+  }
+  else if(!shader_flag[1])
+  {
+    frag_code=frag_code_default;
+  }
+  if(shader_flag[1])
+  {
+    vertex_init+=texture_VI;
+    vertex_code+=texture_VC;
+    frag_init+=texture_FI;
+    frag_code+=texture_FC;
+  }
+  vertex_code+="}";
+  frag_code+="}";
+}
+
+void init_shader_code(const std::string& code, const std::string& filename){
+  std::ofstream out(filename);
+  if (out.is_open()) {
+    out << code;
+  } else {
+    out << "파일을 찾을 수 없습니다!" << std::endl;
+  }
 }
 
 // GLSL 파일을 읽어서 컴파일한 후 쉐이더 객체를 생성하는 함수
@@ -300,15 +350,17 @@ void init_buffer_objects()
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
         }
-        else if (attrib.first.compare("NORMAL") == 0)
+        /*else if (attrib.first.compare("NORMAL") == 0)
         {
           glGenBuffers(1, &normal_buffer);
           glBindBuffer(bufferView.target, normal_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
-        }
+        }*/
         else if (attrib.first.compare("TEXCOORD_0") == 0)
         {
+          //이 부분에 bool 초기화
+          shader_flag[1]=true;
           glGenBuffers(1, &texcoord_buffer);
           glBindBuffer(bufferView.target, texcoord_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
@@ -316,6 +368,8 @@ void init_buffer_objects()
         }
         else if (attrib.first.compare("COLOR_0") == 0)
         {
+          //이 부분에 bool 초기화
+          shader_flag[0]=true;
           glGenBuffers(1, &color_buffer);
           glBindBuffer(bufferView.target, color_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
@@ -550,7 +604,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
       }
-      else if (attrib.first.compare("NORMAL") == 0)
+      /*else if (attrib.first.compare("NORMAL") == 0)
       {
         glBindBuffer(bufferView.target, normal_buffer);
         glEnableVertexAttribArray(loc_a_normal);
@@ -558,7 +612,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.type, accessor.componentType,
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
-      }
+      }*/
       else if (attrib.first.compare("TEXCOORD_0") == 0)
       {
         glBindBuffer(bufferView.target, texcoord_buffer);
@@ -598,10 +652,12 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
       glDrawArrays(primitive.mode, 0, count);
     }
     // 정점 attribute 배열 비활성화
-    glDisableVertexAttribArray(loc_a_texcoord);
-    glDisableVertexAttribArray(loc_a_normal);
     glDisableVertexAttribArray(loc_a_position);
-    glDisableVertexAttribArray(loc_a_color);
+    if(shader_flag[0])
+      glDisableVertexAttribArray(loc_a_color);
+    if(shader_flag[1])
+      glDisableVertexAttribArray(loc_a_texcoord);
+    //glDisableVertexAttribArray(loc_a_normal);
   }
   glUseProgram(0);
 }
@@ -710,12 +766,15 @@ int main(void)
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
   init_state();
-  init_shader_program();
   load_model(model, "model.gltf");
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
   init_texture_objects();
+  init_code();
+  init_shader_code(vertex_init+vertex_code, "./shader/vertex.glsl");
+  init_shader_code(frag_init+frag_code, "./shader/fragment.glsl");
+  init_shader_program();
   glfwSetKeyCallback(window, key_callback);
   std::cout<<position_buffer<<std::endl;
   // Loop until the user closes the window
