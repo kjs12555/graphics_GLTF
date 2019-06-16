@@ -385,7 +385,7 @@ void set_transform()
 
   const std::vector<tinygltf::Node>& nodes = model.nodes;
   const std::vector<tinygltf::Camera>& cameras = model.cameras;
-  if(!cameras.empty()){
+  if(cameras.size()>camera_index){
     const tinygltf::Camera& camera = cameras[camera_index];
     if (camera.type.compare("perspective") == 0)
     {
@@ -411,6 +411,7 @@ void set_transform()
       std::cout << "(xmag, ymag, n, f): " << xmag << ", " << ymag << ", " << znear << ", " << zfar << std::endl;*/
       mat_proj = kmuvcl::math::ortho(-xmag, xmag, -ymag, ymag, znear, zfar);
     }
+    std::cout << proj_flag << "test" << std::endl;
 
     for (const tinygltf::Node& node : nodes)
     {
@@ -711,7 +712,7 @@ int main(void)
   std::cout << glGetString(GL_VERSION) << std::endl;
   init_state();
   init_shader_program();
-  load_model(model, "BoxTextured/BoxTextured.gltf");
+  load_model(model, "model.gltf");
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
