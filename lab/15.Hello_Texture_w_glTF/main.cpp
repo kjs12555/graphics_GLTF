@@ -411,7 +411,6 @@ void set_transform()
       std::cout << "(xmag, ymag, n, f): " << xmag << ", " << ymag << ", " << znear << ", " << zfar << std::endl;*/
       mat_proj = kmuvcl::math::ortho(-xmag, xmag, -ymag, ymag, znear, zfar);
     }
-    std::cout << proj_flag << "test" << std::endl;
 
     for (const tinygltf::Node& node : nodes)
     {
