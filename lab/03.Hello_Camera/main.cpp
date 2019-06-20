@@ -258,7 +258,6 @@ void frambuffer_size_callback(GLFWwindow* window, int width, int height)
   g_aspect = (float)width / (float)height;
 }
 
-
 // object rendering: 현재 scene은 삼각형 하나로 구성되어 있음.
 void render_object()
 {

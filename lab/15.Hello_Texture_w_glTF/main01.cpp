@@ -1,4 +1,4 @@
-#ifdef _WIN32
+﻿#ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -84,6 +84,7 @@ GLint   loc_a_position;
 GLint   loc_a_normal;
 GLint   loc_a_texcoord;
 GLint   loc_a_color;
+GLint		loc_u_color;
 
 GLint   loc_u_PVM;
 GLint   loc_u_M;
@@ -100,10 +101,9 @@ GLint   loc_u_material_specular;
 GLint   loc_u_material_shininess;
 
 GLint   loc_u_diffuse_texture;
-GLint   loc_u_color;
 
 //shader_flag 0은 color, 1은 texture 정보가 있으면 true이다. 거기에 따라서 shader구성이 변한다.
-bool shader_flag[10]={false,};
+bool shader_flag[2]={false,false};
 std::string vertex_init="#version 120// GLSL 1.20\nuniform mat4 u_PVM;\nattribute vec3 a_position;\n";
 std::string vertex_code="void main(){\n\tgl_Position=u_PVM*vec4(a_position,1.0f);\n";
 std::string frag_init="#version 120// GLSL 1.20\n";
@@ -113,14 +113,10 @@ std::string color_VI = "attribute vec3 a_color;\nvarying vec3 v_color;\n";
 std::string color_VC = "\tv_color = a_color;\n";
 std::string color_FI = "varying vec3 v_color;\n";
 std::string color_FC = "\tgl_FragColor = vec4(v_color,1.0f);\n";
-std::string texture_VI = "uniform mat4 u_M;\nattribute vec2 a_texcoord;\nvarying vec2 v_texcoord;\nattribute vec3 a_normal;\nvarying vec3 v_normal_wc;\nvarying vec3 v_position_wc;\n";
-std::string texture_VC = "\tv_texcoord = a_texcoord;\nv_normal_wc   = normalize((u_M * vec4(a_normal, 0)).xyz);\nv_position_wc = (u_M * vec4(a_position, 1)).xyz;\n";
-std::string texture_FI = "uniform sampler2D u_diffuse_texture;\nvarying vec2 v_texcoord;\nvarying vec3 v_position_wc;\nvarying vec3 v_normal_wc;\nuniform vec4 u_material_ambient;\nuniform vec4 u_material_specular;\nuniform float u_material_shininess;\nuniform vec3 u_view_position_wc;\nuniform vec3 u_light_position_wc;\nuniform vec4 u_light_ambient;\nuniform vec4 u_light_diffuse;\nuniform vec4 u_light_specular;\nvec4 calc_color()\n{\n\tvec4 color = vec4(0.0);\n\tvec3 n_wc = normalize(v_normal_wc);\n\tvec3 l_wc = normalize(u_light_position_wc - v_position_wc);\n\tvec3 r_wc = reflect(-l_wc, n_wc);\n\tvec3 v_wc = u_view_position_wc;\n\tcolor += (u_light_ambient * u_material_ambient);\n\tvec4 material_diffuse = texture2D(u_diffuse_texture, v_texcoord);\n\tfloat ndotl = max(0.0, dot(n_wc, l_wc));\n\tcolor += (ndotl * u_light_diffuse * material_diffuse);\n\tfloat rdotv = max(0.0, dot(r_wc, v_wc) );\n\tcolor += (pow(rdotv, u_material_shininess) * u_light_specular * u_material_specular);\n\treturn color;\n}";
-
-std::string texture_FC = "vec4 tmp_color = calc_color();\ngl_FragColor = tmp_color;\n";
-std::string factor_FI = "uniform vec4 u_color;\n";
-std::string factor_FC = "gl_FragColor = u_color;\n";
-std::string texcrood_factor_FC = "gl_FragColor = vec4(tmp_color[0]*u_color[0],tmp_color[1]*u_color[1],tmp_color[2]*u_color[2],tmp_color[3]*u_color[3])\n;";
+std::string texture_VI = "attribute vec2 a_texcoord;\nvarying vec2 v_texcoord;\n";
+std::string texture_VC = "\tv_texcoord = a_texcoord;\n";
+std::string texture_FI = "uniform sampler2D u_texture;\nvarying vec2 v_texcoord;\n";
+std::string texture_FC = "\tgl_FragColor = texture2D(u_texture, v_texcoord);\n";
 
 
 void init_shader_code(const std::string& code, const std::string& filename);
@@ -159,17 +155,15 @@ GLuint diffuse_texid;
 
 kmuvcl::math::vec3f view_position_wc;
 
-kmuvcl::math::vec3f light_position_wc = kmuvcl::math::vec3f(0.0f, 5.0f, 10.0f);
+kmuvcl::math::vec3f light_position_wc = kmuvcl::math::vec3f(0.0f, 1.0f, 1.0f);
 
-kmuvcl::math::vec4f light_ambient = kmuvcl::math::vec4f(0.02f, 0.0f, 0.01f, 1.0f);
+kmuvcl::math::vec4f light_ambient = kmuvcl::math::vec4f(0.02f, 0.03f, 0.0f, 0.0f);
 kmuvcl::math::vec4f light_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(0.07f, 0.07f, 0.07f, 1.0f);
+kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 kmuvcl::math::vec4f material_ambient = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(0.3f, 0.3f, 0.3f, 1.0f);
-float               material_shininess = 1.0f;
-
-kmuvcl::math::vec4f color_tmp;
+kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
+float               material_shininess = 60.0f;
 
 bool load_model(tinygltf::Model &model, const std::string filename);
 void init_buffer_objects();     // VBO init 함수: GPU의 VBO를 초기화하는 함수.
@@ -186,6 +180,9 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
 int camera_index = 0;
 float m_translate_x=0, m_translate_y=0, m_translate_z=0;
 float c_translate_x=0, c_translate_y=0, c_translate_z=0;
+
+GLfloat g_color[3] ={0,};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void init_state()
@@ -210,16 +207,7 @@ void init_code(){
     vertex_init+=texture_VI;
     vertex_code+=texture_VC;
     frag_init+=texture_FI;
-    if(!shader_flag[2])
-      frag_code+=texture_FC;
-  }
-  if(shader_flag[2])
-  {
-    frag_init+=factor_FI;
-    if(shader_flag[1])
-      frag_code+=texcrood_factor_FC;
-    else
-      frag_code+=factor_FC;
+    frag_code+=texture_FC;
   }
   vertex_code+="}";
   frag_code+="}";
@@ -286,13 +274,13 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
 void init_shader_program()
 {
   GLuint vertex_shader
-    = create_shader_from_file("./shader/vertex1.glsl", GL_VERTEX_SHADER);
+    = create_shader_from_file("./shader/vertex.glsl", GL_VERTEX_SHADER);
 
   std::cout << "vertex_shader id: " << vertex_shader << std::endl;
   assert(vertex_shader != 0);
 
   GLuint fragment_shader
-    = create_shader_from_file("./shader/fragment1.glsl", GL_FRAGMENT_SHADER);
+    = create_shader_from_file("./shader/fragment.glsl", GL_FRAGMENT_SHADER);
 
   std::cout << "fragment_shader id: " << fragment_shader << std::endl;
   assert(fragment_shader != 0);
@@ -325,29 +313,25 @@ void init_shader_program()
 
   loc_u_PVM = glGetUniformLocation(program, "u_PVM");
   loc_u_M = glGetUniformLocation(program, "u_M");
+
+  loc_u_view_position_wc = glGetUniformLocation(program, "u_view_position_wc");
+  loc_u_light_position_wc = glGetUniformLocation(program, "u_light_position_wc");
+  loc_u_color = glGetUniformLocation(program, "u_color");
+
+  loc_u_light_ambient = glGetUniformLocation(program, "u_light_ambient");
+  loc_u_light_diffuse = glGetUniformLocation(program, "u_light_diffuse");
+  loc_u_light_specular = glGetUniformLocation(program, "u_light_specular");
+
+  loc_u_material_ambient = glGetUniformLocation(program, "u_material_ambient");
+  loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
+  loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
+
+  loc_u_diffuse_texture = glGetUniformLocation(program, "u_diffuse_texture");
+
   loc_a_position = glGetAttribLocation(program, "a_position");
-
-  if(shader_flag[0])
-    loc_a_color = glGetAttribLocation(program, "a_color");
-
-  if(shader_flag[1])
-  {
-    loc_u_view_position_wc = glGetUniformLocation(program, "u_view_position_wc");
-    loc_u_light_position_wc = glGetUniformLocation(program, "u_light_position_wc");
-    loc_u_light_ambient = glGetUniformLocation(program, "u_light_ambient");
-    loc_u_light_diffuse = glGetUniformLocation(program, "u_light_diffuse");
-    loc_u_light_specular = glGetUniformLocation(program, "u_light_specular");
-    loc_u_material_ambient = glGetUniformLocation(program, "u_material_ambient");
-    loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
-    loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
-    loc_u_diffuse_texture = glGetUniformLocation(program, "u_diffuse_texture");
-  
-    loc_a_normal = glGetAttribLocation(program, "a_normal");
-    loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
-  }
-  
-  if(shader_flag[2])
-    loc_u_color = glGetUniformLocation(program, "u_color");
+  loc_a_normal = glGetAttribLocation(program, "a_normal");
+  loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
+  loc_a_color = glGetAttribLocation(program, "a_color");
 }
 
 bool load_model(tinygltf::Model &model, const std::string filename)
@@ -406,13 +390,16 @@ void init_buffer_objects()
 
       if (primitive.material > -1)
       {
+        shader_flag[0]=true;
         const tinygltf::Material& material = materials[primitive.material];
         for (const std::pair<std::string, tinygltf::Parameter> parameter : material.values)
         {
-          if(parameter.first.compare("baseColorFactor")==0)
-          {
-            shader_flag[2]=true;
-          }
+          if(parameter.first.compare("baseColorFactor")!=0) continue;
+          std::cout << parameter.second.number_array.at(0) << std::endl;
+          g_color[0] = parameter.second.number_array.at(0);
+          g_color[1] = parameter.second.number_array.at(1);
+          g_color[2] = parameter.second.number_array.at(2);
+          std::cout << g_color[0] << std::endl;
         }
       }
 
@@ -438,6 +425,7 @@ void init_buffer_objects()
         }
         else if (attrib.first.compare("TEXCOORD_0") == 0)
         {
+          //이 부분에 bool 초기화
           shader_flag[1]=true;
           glGenBuffers(1, &texcoord_buffer);
           glBindBuffer(bufferView.target, texcoord_buffer);
@@ -446,6 +434,7 @@ void init_buffer_objects()
         }
         else if (attrib.first.compare("COLOR_0") == 0)
         {
+          //이 부분에 bool 초기화
           shader_flag[0]=true;
           glGenBuffers(1, &color_buffer);
           glBindBuffer(bufferView.target, color_buffer);
@@ -569,7 +558,7 @@ void set_transform()
     }
   }
   if(!proj_flag) mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
-  if(!view_flag) mat_view = kmuvcl::math::translate(c_translate_x, c_translate_y, c_translate_z-2.0f);
+  if(!view_flag) mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
 }
 
 void draw_node(const tinygltf::Node& node, kmuvcl::math::mat4f mat_model)
@@ -642,22 +631,19 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
   glUniformMatrix4fv(loc_u_M, 1, GL_FALSE, mat_model);
 
-  if(shader_flag[1])
-  {
-    view_position_wc[0] = mat_view(0, 3);
-    view_position_wc[1] = mat_view(1, 3);
-    view_position_wc[2] = mat_view(2, 3);
-    glUniform3fv(loc_u_view_position_wc, 1, view_position_wc);
-    glUniform3fv(loc_u_light_position_wc, 1, light_position_wc);
+  view_position_wc[0] = mat_view(0, 3);
+  view_position_wc[1] = mat_view(1, 3);
+  view_position_wc[2] = mat_view(2, 3);
+  glUniform3fv(loc_u_view_position_wc, 1, view_position_wc);
+  glUniform3fv(loc_u_light_position_wc, 1, light_position_wc);
 
-    glUniform4fv(loc_u_light_ambient, 1, light_ambient);
-    glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
-    glUniform4fv(loc_u_light_specular, 1, light_specular);
+  glUniform4fv(loc_u_light_ambient, 1, light_ambient);
+  glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
+  glUniform4fv(loc_u_light_specular, 1, light_specular);
   
-    glUniform4fv(loc_u_material_ambient, 1, material_ambient);
-    glUniform4fv(loc_u_material_specular, 1, material_specular);
-    glUniform1f(loc_u_material_shininess, material_shininess);
-  }
+  glUniform4fv(loc_u_material_ambient, 1, material_ambient);
+  glUniform4fv(loc_u_material_specular, 1, material_specular);
+  glUniform1f(loc_u_material_shininess, material_shininess);
 
   for (const tinygltf::Primitive& primitive : mesh.primitives)
   {
@@ -676,14 +662,13 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
             glUniform1i(loc_u_diffuse_texture, 0);
           }
         }
-		    if (parameter.first.compare("baseColorFactor") == 0)
+        if (parameter.first.compare("baseColorFactor") == 0)
         {
-          color_tmp[0] = parameter.second.number_array[0];
-          color_tmp[1] = parameter.second.number_array[1];
-          color_tmp[2] = parameter.second.number_array[2];
-          color_tmp[3] = parameter.second.number_array[3];
-          std::cout<<color_tmp<<"test"<<std::endl;
-          glUniform4fv(loc_u_color, 1, color_tmp);
+          if(!parameter.second.number_array.empty())
+          {
+            std::cout<<"test"<<std::endl;
+            glUniform3fv(loc_u_color, 1, g_color);
+          }
         }
       }
     }
@@ -761,10 +746,8 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
     if(shader_flag[0])
       glDisableVertexAttribArray(loc_a_color);
     if(shader_flag[1])
-    {
       glDisableVertexAttribArray(loc_a_texcoord);
-      glDisableVertexAttribArray(loc_a_normal);
-    }
+    glDisableVertexAttribArray(loc_a_normal);
   }
   glUseProgram(0);
 }
@@ -775,7 +758,7 @@ void draw_scene()
 
   kmuvcl::math::mat4f mat_model;
   mat_model.set_to_identity();
-  mat_model = kmuvcl::math::translate<float>(m_translate_x, m_translate_y, m_translate_z);
+  mat_model = kmuvcl::math::translate<float>(c_translate_x, c_translate_y, c_translate_z);
 
   for (const tinygltf::Scene& scene : model.scenes)
   {
@@ -796,77 +779,52 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		else
 			printf("Orthographic Camera!");
 	}
-	if (key == GLFW_KEY_A){
+	if (key == GLFW_KEY_H){
 		m_translate_x -= 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
-	if (key == GLFW_KEY_D){
+	if (key == GLFW_KEY_L){
 		m_translate_x += 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
-	if (key == GLFW_KEY_W){
+	if (key == GLFW_KEY_J){
 		m_translate_y += 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
-	if (key == GLFW_KEY_S){
+	if (key == GLFW_KEY_K){
 		m_translate_y -= 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
-	if (key == GLFW_KEY_Q){
+	if (key == GLFW_KEY_I){
 		m_translate_z += 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
-	if (key == GLFW_KEY_E){
+	if (key == GLFW_KEY_O){
 		m_translate_z -= 0.1f;
 		std::printf("model's x : %f   y : %f   z : %f\n",m_translate_x,m_translate_y,m_translate_z);
 	}
 
-	if (key == GLFW_KEY_F){
-		light_position_wc[0] -= 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-	if (key == GLFW_KEY_H){
-		light_position_wc[0] += 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-	if (key == GLFW_KEY_T){
-		light_position_wc[1] += 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-	if (key == GLFW_KEY_G){
-		light_position_wc[1] -= 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-	if (key == GLFW_KEY_R){
-		light_position_wc[2] += 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-	if (key == GLFW_KEY_Y){
-		light_position_wc[2] -= 0.1f;
-		std::cout<< "light's " << light_position_wc << std::endl;
-	}
-
-	if (key == GLFW_KEY_J){
+	if (key == GLFW_KEY_A){
 		c_translate_x -= 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
-	if (key == GLFW_KEY_L){
+	if (key == GLFW_KEY_F){
 		c_translate_x += 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
-	if (key == GLFW_KEY_I){
+	if (key == GLFW_KEY_S){
 		c_translate_y += 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
-	if (key == GLFW_KEY_K){
+	if (key == GLFW_KEY_D){
 		c_translate_y -= 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
-	if (key == GLFW_KEY_U){
+	if (key == GLFW_KEY_W){
 		c_translate_z += 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
-	if (key == GLFW_KEY_O){
+	if (key == GLFW_KEY_E){
 		c_translate_z -= 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
@@ -898,17 +856,16 @@ int main(void)
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
   init_state();
-  load_model(model, "model.gltf");
+  load_model(model, "BoxTextured/Box.gltf");
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
   init_texture_objects();
   init_code();
-  init_shader_code(vertex_init+vertex_code, "./shader/vertex1.glsl");
-  init_shader_code(frag_init+frag_code, "./shader/fragment1.glsl");
+  //init_shader_code(vertex_init+vertex_code, "./shader/vertex.glsl");
+  //init_shader_code(frag_init+frag_code, "./shader/fragment.glsl");
   init_shader_program();
   glfwSetKeyCallback(window, key_callback);
-  std::cout<<position_buffer<<std::endl;
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
   {
@@ -929,4 +886,3 @@ int main(void)
 
   return 0;
 }
-
