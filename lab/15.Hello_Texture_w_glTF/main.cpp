@@ -117,10 +117,10 @@ std::string texture_VI = "uniform mat4 u_M;\nattribute vec2 a_texcoord;\nvarying
 std::string texture_VC = "\tv_texcoord = a_texcoord;\nv_normal_wc   = normalize((u_M * vec4(a_normal, 0)).xyz);\nv_position_wc = (u_M * vec4(a_position, 1)).xyz;\n";
 std::string texture_FI = "uniform sampler2D u_diffuse_texture;\nvarying vec2 v_texcoord;\nvarying vec3 v_position_wc;\nvarying vec3 v_normal_wc;\nuniform vec4 u_material_ambient;\nuniform vec4 u_material_specular;\nuniform float u_material_shininess;\nuniform vec3 u_view_position_wc;\nuniform vec3 u_light_position_wc;\nuniform vec4 u_light_ambient;\nuniform vec4 u_light_diffuse;\nuniform vec4 u_light_specular;\nvec4 calc_color()\n{\n\tvec4 color = vec4(0.0);\n\tvec3 n_wc = normalize(v_normal_wc);\n\tvec3 l_wc = normalize(u_light_position_wc - v_position_wc);\n\tvec3 r_wc = reflect(-l_wc, n_wc);\n\tvec3 v_wc = u_view_position_wc;\n\tcolor += (u_light_ambient * u_material_ambient);\n\tvec4 material_diffuse = texture2D(u_diffuse_texture, v_texcoord);\n\tfloat ndotl = max(0.0, dot(n_wc, l_wc));\n\tcolor += (ndotl * u_light_diffuse * material_diffuse);\n\tfloat rdotv = max(0.0, dot(r_wc, v_wc) );\n\tcolor += (pow(rdotv, u_material_shininess) * u_light_specular * u_material_specular);\n\treturn color;\n}";
 
-std::string texture_FC = "vec4 tmp_color = calc_color();\ngl_FragColor = tmp_color;\n";
+std::string texture_FC = "\tvec4 tmp_color = calc_color();\n\tgl_FragColor = tmp_color;\n";
 std::string factor_FI = "uniform vec4 u_color;\n";
-std::string factor_FC = "gl_FragColor = u_color;\n";
-std::string texcrood_factor_FC = "gl_FragColor = vec4(tmp_color[0]*u_color[0],tmp_color[1]*u_color[1],tmp_color[2]*u_color[2],tmp_color[3]*u_color[3])\n;";
+std::string factor_FC = "\tgl_FragColor = u_color;\n";
+std::string texcrood_factor_FC = "\tvec4 tmp_color = calc_color();\n\tgl_FragColor += vec4(tmp_color[0]*u_color[0],tmp_color[1]*u_color[1],tmp_color[2]*u_color[2],tmp_color[3]*u_color[3]);\n";
 
 
 void init_shader_code(const std::string& code, const std::string& filename);
@@ -199,7 +199,7 @@ void init_code(){
     vertex_init+=color_VI;
     vertex_code+=color_VC;
     frag_init+=color_FI;
-    frag_code+=color_VC;
+    frag_code+=color_FC;
   }
   else if(!shader_flag[1])
   {
@@ -403,7 +403,6 @@ void init_buffer_objects()
         glBufferData(bufferView.target, bufferView.byteLength,
           &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
       }
-
       if (primitive.material > -1)
       {
         const tinygltf::Material& material = materials[primitive.material];
@@ -682,7 +681,6 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           color_tmp[1] = parameter.second.number_array[1];
           color_tmp[2] = parameter.second.number_array[2];
           color_tmp[3] = parameter.second.number_array[3];
-          std::cout<<color_tmp<<"test"<<std::endl;
           glUniform4fv(loc_u_color, 1, color_tmp);
         }
       }
