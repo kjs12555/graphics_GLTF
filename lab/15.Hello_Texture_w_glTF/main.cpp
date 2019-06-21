@@ -1,4 +1,4 @@
-#ifdef _WIN32
+﻿#ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <fstream>
 #include <cassert>
+#include <chrono>
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -104,23 +105,33 @@ GLint   loc_u_color;
 
 //shader_flag 0은 color, 1은 texture 정보가 있으면 true이다. 거기에 따라서 shader구성이 변한다.
 bool shader_flag[10]={false,};
-std::string vertex_init="#version 120// GLSL 1.20\nuniform mat4 u_PVM;\nattribute vec3 a_position;\n";
-std::string vertex_code="void main(){\n\tgl_Position=u_PVM*vec4(a_position,1.0f);\n";
-std::string frag_init="#version 120// GLSL 1.20\n";
-std::string frag_code="void main(){\n";
-std::string frag_code_default="void main(){\n\tgl_FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);\n";
+
+std::string vertex_init="#version 120// GLSL 1.20\nuniform mat4 u_PVM;\nattribute vec3 a_position;\nuniform mat4 u_M;\nattribute vec2 a_texcoord;\nvarying vec3 v_normal_wc;\nvarying vec3 v_position_wc;\n";
+std::string yes_normal_VI="attribute vec3 a_normal;\n";
+std::string vertex_code="void main(){\n\tgl_Position=u_PVM*vec4(a_position,1.0f);\n\tv_position_wc = (u_M * vec4(a_position, 1)).xyz;\n";
+std::string no_normal_VC="\tv_normal_wc=normalize((u_M * vec4(1.0f,1.0f,1.0f,0.0f)).xyz);\n";
+std::string yes_normal_VC="\tv_normal_wc=normalize((u_M * vec4(a_normal, 0)).xyz);\n";
+
+std::string frag_init="#version 120// GLSL 1.20\nvarying vec3 v_normal_wc;\nvarying vec3 v_position_wc;\nuniform vec4 u_material_ambient;\nuniform vec4 u_material_specular;\nuniform float u_material_shininess;\nuniform vec3 u_view_position_wc;\nuniform vec3 u_light_position_wc;\nuniform vec4 u_light_ambient;\nuniform vec4 u_light_diffuse;\nuniform vec4 u_light_specular;\n";
+std::string no_texture_FFI="\tvec4 material_diffuse = u_diffuse_texture;\n";
+std::string yes_texture_FFI="\tvec4 material_diffuse = texture2D(u_diffuse_texture, v_texcoord);\n";
+std::string frag_init_first="vec4 calc_color()\n{\n\tvec4 color = vec4(0.0);\n\tvec3 n_wc = normalize(v_normal_wc);\n\tvec3 l_wc = normalize(u_light_position_wc - v_position_wc);\n\tvec3 r_wc = reflect(-l_wc, n_wc);\n\tvec3 v_wc = u_view_position_wc;\n\tcolor += (u_light_ambient * u_material_ambient);\n";
+std::string frag_init_last="\tfloat ndotl = max(0.0, dot(n_wc, l_wc));\n\tcolor += (ndotl * u_light_diffuse * material_diffuse);\n\tfloat rdotv = max(0.0, dot(r_wc, v_wc) );\n\tcolor += (pow(rdotv, u_material_shininess) * u_light_specular * u_material_specular);\n\treturn color;\n}\n";
+std::string frag_code="void main()\n{\n\tvec4 tmp_color=calc_color();\n";
+std::string no_color_FC="\ttmp_color+=vec4(1.0f, 0.0f, 0.0f, 1.0f);\n";
+
+std::string no_texture_FI="uniform vec4 u_diffuse_texture;\n";
+std::string yes_texture_FI="uniform sampler2D u_diffuse_texture;\nvarying vec2 v_texcoord;\n";
 std::string color_VI = "attribute vec3 a_color;\nvarying vec3 v_color;\n";
 std::string color_VC = "\tv_color = a_color;\n";
 std::string color_FI = "varying vec3 v_color;\n";
-std::string color_FC = "\tgl_FragColor = vec4(v_color,1.0f);\n";
-std::string texture_VI = "uniform mat4 u_M;\nattribute vec2 a_texcoord;\nvarying vec2 v_texcoord;\nattribute vec3 a_normal;\nvarying vec3 v_normal_wc;\nvarying vec3 v_position_wc;\n";
-std::string texture_VC = "\tv_texcoord = a_texcoord;\nv_normal_wc   = normalize((u_M * vec4(a_normal, 0)).xyz);\nv_position_wc = (u_M * vec4(a_position, 1)).xyz;\n";
-std::string texture_FI = "uniform sampler2D u_diffuse_texture;\nvarying vec2 v_texcoord;\nvarying vec3 v_position_wc;\nvarying vec3 v_normal_wc;\nuniform vec4 u_material_ambient;\nuniform vec4 u_material_specular;\nuniform float u_material_shininess;\nuniform vec3 u_view_position_wc;\nuniform vec3 u_light_position_wc;\nuniform vec4 u_light_ambient;\nuniform vec4 u_light_diffuse;\nuniform vec4 u_light_specular;\nvec4 calc_color()\n{\n\tvec4 color = vec4(0.0);\n\tvec3 n_wc = normalize(v_normal_wc);\n\tvec3 l_wc = normalize(u_light_position_wc - v_position_wc);\n\tvec3 r_wc = reflect(-l_wc, n_wc);\n\tvec3 v_wc = u_view_position_wc;\n\tcolor += (u_light_ambient * u_material_ambient);\n\tvec4 material_diffuse = texture2D(u_diffuse_texture, v_texcoord);\n\tfloat ndotl = max(0.0, dot(n_wc, l_wc));\n\tcolor += (ndotl * u_light_diffuse * material_diffuse);\n\tfloat rdotv = max(0.0, dot(r_wc, v_wc) );\n\tcolor += (pow(rdotv, u_material_shininess) * u_light_specular * u_material_specular);\n\treturn color;\n}";
+std::string color_FC = "\ttmp_color += vec4(v_color,1.0f);\n";
+std::string texture_VI = "varying vec2 v_texcoord;\n";
+std::string texture_VC = "\tv_texcoord = a_texcoord;\n";
 
-std::string texture_FC = "\tvec4 tmp_color = calc_color();\n\tgl_FragColor = tmp_color;\n";
 std::string factor_FI = "uniform vec4 u_color;\n";
-std::string factor_FC = "\tgl_FragColor = u_color;\n";
-std::string texcrood_factor_FC = "\tvec4 tmp_color = calc_color();\n\tgl_FragColor += vec4(tmp_color[0]*u_color[0],tmp_color[1]*u_color[1],tmp_color[2]*u_color[2],tmp_color[3]*u_color[3]);\n";
+std::string factor_FC = "\ttmp_color += u_color;\n";
+std::string texcrood_factor_FC = "\ttmp_color += vec4(tmp_color[0]*u_color[0],tmp_color[1]*u_color[1],tmp_color[2]*u_color[2],tmp_color[3]*u_color[3]);\n";
 
 
 void init_shader_code(const std::string& code, const std::string& filename);
@@ -134,6 +145,10 @@ void init_shader_program();
 ////////////////////////////////////////////////////////////////////////////////
 kmuvcl::math::mat4x4f   mat_view, mat_proj;
 kmuvcl::math::mat4x4f   mat_PVM;
+
+float   g_angle = 0.0;
+bool    g_is_animation = false;
+std::chrono::time_point<std::chrono::system_clock> prev, curr;
 
 void set_transform();
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +182,8 @@ kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(0.07f, 0.07f, 0.07f, 1.
 
 kmuvcl::math::vec4f material_ambient = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(0.3f, 0.3f, 0.3f, 1.0f);
+kmuvcl::math::vec4f diffuse_texture = kmuvcl::math::vec4f(0.3f, 0.3f, 0.3f, 1.0f);
+
 float               material_shininess = 1.0f;
 
 kmuvcl::math::vec4f color_tmp;
@@ -191,36 +208,35 @@ float c_translate_x=0, c_translate_y=0, c_translate_z=0;
 void init_state()
 {
   glEnable(GL_DEPTH_TEST);
+  
+  prev = curr = std::chrono::system_clock::now();
 }
 
 void init_code(){
-  if(shader_flag[0])
-  {
-    vertex_init+=color_VI;
-    vertex_code+=color_VC;
-    frag_init+=color_FI;
-    frag_code+=color_FC;
-  }
-  else if(!shader_flag[1])
-  {
-    frag_code=frag_code_default;
-  }
-  if(shader_flag[1])
-  {
-    vertex_init+=texture_VI;
-    vertex_code+=texture_VC;
-    frag_init+=texture_FI;
-    if(!shader_flag[2])
-      frag_code+=texture_FC;
-  }
-  if(shader_flag[2])
-  {
-    frag_init+=factor_FI;
-    if(shader_flag[1])
-      frag_code+=texcrood_factor_FC;
-    else
-      frag_code+=factor_FC;
-  }
+	vertex_init += shader_flag[0] ? color_VI : "";
+	vertex_init += shader_flag[1] ? texture_VI : "";
+	vertex_init += shader_flag[3] ? yes_normal_VI : "";
+	
+	vertex_code += shader_flag[3] ? yes_normal_VC : no_normal_VC;
+	vertex_code += shader_flag[1] ? texture_VC : "";
+	vertex_code += shader_flag[0] ? color_VC : "";
+	
+	frag_init += shader_flag[1] ? yes_texture_FI : no_texture_FI;
+	frag_init += shader_flag[0] ? color_FI : "";
+	frag_init += shader_flag[2] ? factor_FI : "";
+	frag_init += frag_init_first;
+	frag_init += shader_flag[1] ? yes_texture_FFI : no_texture_FFI;
+	frag_init += frag_init_last;
+	
+	if(!shader_flag[0] && !shader_flag[1] && !shader_flag[2])
+		frag_code += no_color_FC;
+	if(shader_flag[0])
+		frag_code += color_FC;
+	if(shader_flag[1] && shader_flag[2])
+		frag_code += texcrood_factor_FC;
+	else if(shader_flag[2])
+		frag_code += factor_FC;
+	frag_code += "\tgl_FragColor = tmp_color;\n";
   vertex_code+="}";
   frag_code+="}";
 }
@@ -327,27 +343,25 @@ void init_shader_program()
   loc_u_M = glGetUniformLocation(program, "u_M");
   loc_a_position = glGetAttribLocation(program, "a_position");
 
+  loc_u_view_position_wc = glGetUniformLocation(program, "u_view_position_wc");
+  loc_u_light_position_wc = glGetUniformLocation(program, "u_light_position_wc");
+  loc_u_light_ambient = glGetUniformLocation(program, "u_light_ambient");
+  loc_u_light_diffuse = glGetUniformLocation(program, "u_light_diffuse");
+  loc_u_light_specular = glGetUniformLocation(program, "u_light_specular");
+  loc_u_material_ambient = glGetUniformLocation(program, "u_material_ambient");
+  loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
+  loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
+  loc_u_diffuse_texture = glGetUniformLocation(program, "u_diffuse_texture");
+  
   if(shader_flag[0])
     loc_a_color = glGetAttribLocation(program, "a_color");
-
   if(shader_flag[1])
-  {
-    loc_u_view_position_wc = glGetUniformLocation(program, "u_view_position_wc");
-    loc_u_light_position_wc = glGetUniformLocation(program, "u_light_position_wc");
-    loc_u_light_ambient = glGetUniformLocation(program, "u_light_ambient");
-    loc_u_light_diffuse = glGetUniformLocation(program, "u_light_diffuse");
-    loc_u_light_specular = glGetUniformLocation(program, "u_light_specular");
-    loc_u_material_ambient = glGetUniformLocation(program, "u_material_ambient");
-    loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
-    loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
-    loc_u_diffuse_texture = glGetUniformLocation(program, "u_diffuse_texture");
-  
-    loc_a_normal = glGetAttribLocation(program, "a_normal");
-    loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
-  }
-  
+  	loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
   if(shader_flag[2])
     loc_u_color = glGetUniformLocation(program, "u_color");
+  if(shader_flag[3])
+	  loc_a_normal = glGetAttribLocation(program, "a_normal");
+  	
 }
 
 bool load_model(tinygltf::Model &model, const std::string filename)
@@ -430,6 +444,7 @@ void init_buffer_objects()
         }
         else if (attrib.first.compare("NORMAL") == 0)
         {
+        	shader_flag[3]=true;
           glGenBuffers(1, &normal_buffer);
           glBindBuffer(bufferView.target, normal_buffer);
           glBufferData(bufferView.target, bufferView.byteLength,
@@ -547,6 +562,7 @@ void set_transform()
       if (node.camera == camera_index)
       {
         mat_view.set_to_identity();
+        
         if (node.scale.size() == 3) {
           view_flag = true;
           mat_view = mat_view*kmuvcl::math::scale<float>(
@@ -562,14 +578,15 @@ void set_transform()
         if (node.translation.size() == 3) {
           view_flag = true;
           mat_view = mat_view*kmuvcl::math::translate<float>(
-                -node.translation[0], -node.translation[1], -node.translation[2]);
+                -node.translation[0]-c_translate_x, -node.translation[1]-c_translate_y, -node.translation[2]-c_translate_z);
         }      
       }
     }
   }
   if(!proj_flag) mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
-  if(!view_flag) mat_view = kmuvcl::math::translate(c_translate_x, c_translate_y, c_translate_z-2.0f);
+  if(!view_flag) mat_view = kmuvcl::math::translate(-c_translate_x, -c_translate_y, -c_translate_z-2.0f);
 }
+
 
 void draw_node(const tinygltf::Node& node, kmuvcl::math::mat4f mat_model)
 {
@@ -637,26 +654,26 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   const std::vector<tinygltf::Buffer>& buffers = model.buffers;
 
   glUseProgram(program);
-  mat_PVM = mat_proj * mat_view*mat_model;
+  mat_PVM = mat_proj * mat_view* kmuvcl::math::translate<float>(m_translate_x, m_translate_y, m_translate_z) * mat_model;
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
   glUniformMatrix4fv(loc_u_M, 1, GL_FALSE, mat_model);
 
-  if(shader_flag[1])
-  {
-    view_position_wc[0] = mat_view(0, 3);
-    view_position_wc[1] = mat_view(1, 3);
-    view_position_wc[2] = mat_view(2, 3);
-    glUniform3fv(loc_u_view_position_wc, 1, view_position_wc);
-    glUniform3fv(loc_u_light_position_wc, 1, light_position_wc);
+  view_position_wc[0] = mat_view(0, 3);
+  view_position_wc[1] = mat_view(1, 3);
+  view_position_wc[2] = mat_view(2, 3);
+  glUniform3fv(loc_u_view_position_wc, 1, view_position_wc);
+  glUniform3fv(loc_u_light_position_wc, 1, light_position_wc);
 
-    glUniform4fv(loc_u_light_ambient, 1, light_ambient);
-    glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
-    glUniform4fv(loc_u_light_specular, 1, light_specular);
+  glUniform4fv(loc_u_light_ambient, 1, light_ambient);
+  glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
+  glUniform4fv(loc_u_light_specular, 1, light_specular);
   
-    glUniform4fv(loc_u_material_ambient, 1, material_ambient);
-    glUniform4fv(loc_u_material_specular, 1, material_specular);
-    glUniform1f(loc_u_material_shininess, material_shininess);
-  }
+  glUniform4fv(loc_u_material_ambient, 1, material_ambient);
+  glUniform4fv(loc_u_material_specular, 1, material_specular);
+  glUniform1f(loc_u_material_shininess, material_shininess);
+  if(!shader_flag[1])
+    glUniform4fv(loc_u_diffuse_texture, 1, diffuse_texture);
+
 
   for (const tinygltf::Primitive& primitive : mesh.primitives)
   {
@@ -759,10 +776,9 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
     if(shader_flag[0])
       glDisableVertexAttribArray(loc_a_color);
     if(shader_flag[1])
-    {
       glDisableVertexAttribArray(loc_a_texcoord);
+    if(shader_flag[3])
       glDisableVertexAttribArray(loc_a_normal);
-    }
   }
   glUseProgram(0);
 }
@@ -773,7 +789,25 @@ void draw_scene()
 
   kmuvcl::math::mat4f mat_model;
   mat_model.set_to_identity();
-  mat_model = kmuvcl::math::translate<float>(m_translate_x, m_translate_y, m_translate_z);
+  
+  // set object transformation
+  curr = std::chrono::system_clock::now();
+  std::chrono::duration<float> elaped_seconds = (curr - prev);
+  prev = curr;
+
+  if (g_is_animation)
+  {
+    g_angle += 30.0f * elaped_seconds.count();
+    if (g_angle > 25200.0f)
+    {
+      g_angle = 0.0f;
+    }
+  }
+  
+  mat_model = kmuvcl::math::rotate(g_angle*0.7f, 0.0f, 0.0f, 1.0f);
+  mat_model = kmuvcl::math::rotate(g_angle*1.0f, 0.0f, 1.0f, 0.0f)*mat_model;
+  mat_model = kmuvcl::math::rotate(g_angle*0.5f, 1.0f, 0.0f, 0.0f)*mat_model;
+  mat_model = kmuvcl::math::translate(0.0f, 0.0f, -4.0f)*mat_model;
 
   for (const tinygltf::Scene& scene : model.scenes)
   {
@@ -783,10 +817,11 @@ void draw_scene()
       draw_node(node, mat_model);
     }
   }
+
 }
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+	if (key == GLFW_KEY_C && action == GLFW_PRESS)
 	{
 		camera_index = camera_index == 0 ? 1 : 0;
 		if(!camera_index)
@@ -868,9 +903,15 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		c_translate_z -= 0.1f;
 		std::printf("camera's x : %f   y : %f   z : %f\n",c_translate_x,c_translate_y,c_translate_z);
 	}
+	
+	if (key == GLFW_KEY_P && action == GLFW_PRESS)
+  {
+    g_is_animation = !g_is_animation;
+    std::cout << (g_is_animation ? "animation" : "no animation") << std::endl;
+  }
 }
 
-int main(void)
+int main(int argc, char * argv[])
 {
   GLFWwindow* window;
 
@@ -896,7 +937,9 @@ int main(void)
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
   init_state();
-  load_model(model, "model.gltf");
+  std::string tmp = argv[1];
+  tmp = "test_models/" + tmp;
+  load_model(model, tmp);
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
@@ -927,4 +970,3 @@ int main(void)
 
   return 0;
 }
-
