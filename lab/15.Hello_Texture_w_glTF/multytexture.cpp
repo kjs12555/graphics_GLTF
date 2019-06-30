@@ -100,8 +100,10 @@ GLint   loc_u_material_ambient;
 GLint   loc_u_material_specular;
 GLint   loc_u_material_shininess;
 
-GLint   loc_u_diffuse_texture;
+GLint   loc_u_diffuse_texture[10];
 GLint   loc_u_color;
+
+GLint   loc_u_index;
 
 //shader_flag 0은 color, 1은 texture 정보가 있으면 true이다. 거기에 따라서 shader구성이 변한다.
 bool shader_flag[10]={false,};
@@ -170,7 +172,7 @@ GLuint normal_buffer;
 GLuint texcoord_buffer;
 GLuint index_buffer;
 
-GLuint diffuse_texid;
+GLuint diffuse_texid[10];
 
 kmuvcl::math::vec3f view_position_wc;
 
@@ -302,13 +304,13 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
 void init_shader_program()
 {
   GLuint vertex_shader
-    = create_shader_from_file("./shader/vertex.glsl", GL_VERTEX_SHADER);
+    = create_shader_from_file("./shader/vertex1.glsl", GL_VERTEX_SHADER);
 
   std::cout << "vertex_shader id: " << vertex_shader << std::endl;
   assert(vertex_shader != 0);
 
   GLuint fragment_shader
-    = create_shader_from_file("./shader/fragment.glsl", GL_FRAGMENT_SHADER);
+    = create_shader_from_file("./shader/fragment1.glsl", GL_FRAGMENT_SHADER);
 
   std::cout << "fragment_shader id: " << fragment_shader << std::endl;
   assert(fragment_shader != 0);
@@ -351,7 +353,12 @@ void init_shader_program()
   loc_u_material_ambient = glGetUniformLocation(program, "u_material_ambient");
   loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
   loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
-  loc_u_diffuse_texture = glGetUniformLocation(program, "u_diffuse_texture");
+  loc_u_index = glGetUniformLocation(program, "u_index");
+  int tmp_len = model.textures.size();
+  for(int i=0; i<tmp_len; i++){
+  	std::string tmp_name = "u_diffuse_texture"+std::to_string(i);
+	  loc_u_diffuse_texture[i] = glGetUniformLocation(program, tmp_name.c_str());
+	}
   
   if(shader_flag[0])
     loc_a_color = glGetAttribLocation(program, "a_color");
@@ -476,11 +483,15 @@ void init_texture_objects()
   const std::vector<tinygltf::Texture>& textures = model.textures;
   const std::vector<tinygltf::Image>& images = model.images;
   const std::vector<tinygltf::Sampler>& samplers = model.samplers;
-
+  int tex_index=0;
+  
+  if(textures.empty()) return;
+  
+  glGenTextures(textures.size(), diffuse_texid);
+  
   for (const tinygltf::Texture& texture : textures)
   {
-    glGenTextures(1, &diffuse_texid);
-    glBindTexture(GL_TEXTURE_2D, diffuse_texid);
+    glBindTexture(GL_TEXTURE_2D, diffuse_texid[tex_index++]);
 
     const tinygltf::Image& image = images[texture.source];
     const tinygltf::Sampler& sampler = samplers[texture.sampler];
@@ -671,7 +682,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   glUniform4fv(loc_u_material_specular, 1, material_specular);
   glUniform1f(loc_u_material_shininess, material_shininess);
   if(!shader_flag[1])
-    glUniform4fv(loc_u_diffuse_texture, 1, diffuse_texture);
+    glUniform4fv(loc_u_diffuse_texture[0], 1, diffuse_texture);
 
 
   for (const tinygltf::Primitive& primitive : mesh.primitives)
@@ -685,10 +696,10 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
         {
           if (parameter.second.TextureIndex() > -1)
           {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, diffuse_texid);
-
-            glUniform1i(loc_u_diffuse_texture, 0);
+          	glUniform1i(loc_u_index, parameter.second.TextureIndex());
+            glUniform1i(loc_u_diffuse_texture[parameter.second.TextureIndex()], parameter.second.TextureIndex());
+            glActiveTexture(GL_TEXTURE0+parameter.second.TextureIndex());
+            glBindTexture(GL_TEXTURE_2D, diffuse_texid[parameter.second.TextureIndex()]);
           }
         }
 		    if (parameter.first.compare("baseColorFactor") == 0)
@@ -936,20 +947,18 @@ int main(int argc, char * argv[])
   // Print out the OpenGL version supported by the graphics card in my PC
   std::cout << glGetString(GL_VERSION) << std::endl;
   init_state();
-  if(argc<2) std::printf("./실행파일_이름 gltf파일_이름(./test_models 제외)");
   std::string tmp = argv[1];
   tmp = "test_models/" + tmp;
   load_model(model, tmp);
-
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
   init_texture_objects();
-  init_code();
-  init_shader_code(vertex_init+vertex_code, "./shader/vertex.glsl");
-  init_shader_code(frag_init+frag_code, "./shader/fragment.glsl");
+      std::cout<<"test"<<std::endl;
+  //init_code();
+  //init_shader_code(vertex_init+vertex_code, "./shader/vertex1.glsl");
+  //init_shader_code(frag_init+frag_code, "./shader/fragment1.glsl");
   init_shader_program();
   glfwSetKeyCallback(window, key_callback);
-  std::cout<<position_buffer<<std::endl;
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
   {

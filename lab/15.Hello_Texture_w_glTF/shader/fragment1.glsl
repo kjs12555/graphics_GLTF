@@ -9,9 +9,19 @@ uniform vec3 u_light_position_wc;
 uniform vec4 u_light_ambient;
 uniform vec4 u_light_diffuse;
 uniform vec4 u_light_specular;
-uniform sampler2D u_diffuse_texture;
+uniform sampler2D u_diffuse_texture0;
+uniform sampler2D u_diffuse_texture1;
+uniform sampler2D u_diffuse_texture2;
+uniform sampler2D u_diffuse_texture3;
+uniform sampler2D u_diffuse_texture4;
+uniform sampler2D u_diffuse_texture5;
+uniform sampler2D u_diffuse_texture6;
+uniform sampler2D u_diffuse_texture7;
+uniform sampler2D u_diffuse_texture8;
+uniform int u_index;
 varying vec2 v_texcoord;
-vec4 calc_color()
+uniform vec4 u_color;
+vec4 calc_color(sampler2D u_diffuse_texture)
 {
 	vec4 color = vec4(0.0);
 	vec3 n_wc = normalize(v_normal_wc);
@@ -28,6 +38,26 @@ vec4 calc_color()
 }
 void main()
 {
-	vec4 tmp_color=calc_color();
+vec4 tmp_color;
+if(u_index==0)
+	tmp_color = texture2D(u_diffuse_texture0, v_texcoord);
+else if(u_index==1)
+	tmp_color = texture2D(u_diffuse_texture1, v_texcoord);
+else if(u_index==2)
+	tmp_color = texture2D(u_diffuse_texture2, v_texcoord);
+else if(u_index==3)
+	tmp_color = texture2D(u_diffuse_texture3, v_texcoord);
+else if(u_index==4)
+	tmp_color = texture2D(u_diffuse_texture4, v_texcoord);
+else if(u_index==5)
+	tmp_color = texture2D(u_diffuse_texture5, v_texcoord);
+else if(u_index==6)
+	tmp_color = texture2D(u_diffuse_texture6, v_texcoord);
+else if(u_index==7)
+	tmp_color = texture2D(u_diffuse_texture7, v_texcoord);
+else
+	tmp_color = texture2D(u_diffuse_texture8, v_texcoord);
+
+
 	gl_FragColor = tmp_color;
 }

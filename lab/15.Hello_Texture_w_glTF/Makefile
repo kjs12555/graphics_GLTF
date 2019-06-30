@@ -3,7 +3,7 @@ SOURCES = main.cpp
 CC = g++
 CFLAGS = -std=c++11
 LDFLAGS = -lGL -lGLEW -lglfw
-EXECUTABLE = texture
+EXECUTABLE = final_lab
 RM = rm -rf
 
 all: $(SOURCES) $(HEADERS)
